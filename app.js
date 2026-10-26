@@ -6,21 +6,15 @@ import { loadBuiltinFonts, loadCustomFont, getCurrentFont } from './font.js';
 const state = {
   text: '',
   font: 'builtin-sans',
-  ledProfile: 'WS2812B',
-  backingThickness: 4
+  ledProfile: 'WS2812B'
 };
 
-loadBuiltinFonts().then(() => {
-  console.log("Fonts loaded");
-});
+loadBuiltinFonts().then(() => console.log("Fonts loaded"));
 
 const preview = initPreview(document.getElementById('previewContainer'));
 
 function collectOptions() {
-  return {
-    ...state,
-    fontObject: getCurrentFont(state)
-  };
+  return { ...state, fontObject: getCurrentFont(state) };
 }
 
 function refreshGeometry() {
@@ -28,39 +22,23 @@ function refreshGeometry() {
   updatePreview(preview, mesh);
 }
 
-function setupUi() {
-  const byId = id => document.getElementById(id);
+document.getElementById('generateModel').addEventListener('click', refreshGeometry);
 
-  byId('generateModel').addEventListener('click', refreshGeometry);
+document.getElementById('textInput').addEventListener('input', e => {
+  state.text = e.target.value;
+});
 
-  byId('textInput').addEventListener('input', e => {
-    state.text = e.target.value;
-  });
+document.getElementById('fontSelect').addEventListener('change', e => {
+  state.font = e.target.value;
+});
 
-  byId('fontSelect').addEventListener('change', e => {
-    state.font = e.target.value;
-  });
+document.getElementById('fontUpload').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await loadCustomFont(file);
+  state.font = "custom";
+});
 
-  byId('fontUpload').addEventListener('change', async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    await loadCustomFont(file);
-    state.font = "custom";
-  });
-
-  byId('ledProfile').addEventListener('change', e => {
-    state.ledProfile = e.target.value;
-  });
-
-  byId('downloadStl').addEventListener('click', () => {
-    const mesh = createSignGeometry(collectOptions());
-    downloadStl(mesh);
-  });
-
-  byId('downloadObj').addEventListener('click', () => {
-    const mesh = createSignGeometry(collectOptions());
-    downloadObj(mesh);
-  });
-}
-
-setupUi();
+document.getElementById('ledProfile').addEventListener('change', e => {
+  state.ledProfile = e.target.value;
+});
