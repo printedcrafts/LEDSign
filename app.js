@@ -1,15 +1,13 @@
 import { initPreview, updatePreview } from './preview.js';
 import { createSignGeometry } from './geometry.js';
 import { downloadStl, downloadObj, download3mf } from './export.js';
+import { loadBuiltinFonts, loadCustomFont, getCurrentFont } from './font.js';
 
 const state = {
   text: '',
   font: 'builtin-sans',
   signType: 'tube',
-
-  // UPDATED: default LED profile must match your new LED model list
   ledProfile: 'WS2812B',
-
   backingThickness: 4,
   holesEnabled: false,
   holeDiameter: 4,
@@ -19,10 +17,15 @@ const state = {
   slatEnabled: false,
 };
 
+await loadBuiltinFonts();
+
 const preview = initPreview(document.getElementById('previewContainer'));
 
 function collectOptions() {
-  return { ...state };
+  return { 
+    ...state,
+    fontObject: getCurrentFont(state)
+  };
 }
 
 function refreshGeometry() {
@@ -34,7 +37,6 @@ function refreshGeometry() {
 function setupUi() {
   const byId = (id) => document.getElementById(id);
 
-  // ⭐ NEW: Generate Model button
   byId('generateModel').addEventListener('click', () => {
     refreshGeometry();
   });
@@ -48,7 +50,10 @@ function setupUi() {
   });
 
   byId('fontUpload').addEventListener('change', async (e) => {
-    // stub for now – later we wire opentype.js here
+    const file = e.target.files[0];
+    if (!file) return;
+    await loadCustomFont(file);
+    state.font = "custom";
   });
 
   byId('signType').addEventListener('change', (e) => {
@@ -87,7 +92,6 @@ function setupUi() {
     state.slatEnabled = e.target.checked;
   });
 
-  // ⭐ Export buttons
   byId('downloadStl').addEventListener('click', () => {
     const mesh = createSignGeometry(collectOptions());
     downloadStl(mesh);
@@ -105,6 +109,3 @@ function setupUi() {
 }
 
 setupUi();
-
-// ⭐ Do NOT auto-generate on load anymore.
-// The user must click "Generate Model".
