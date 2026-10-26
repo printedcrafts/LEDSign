@@ -7,19 +7,18 @@ body {
 
 .header {
   padding: 1rem 2rem;
-  border-bottom: 1px solid #222;
   background: #111;
+  border-bottom: 1px solid #222;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 350px 1fr;
   height: calc(100vh - 80px);
 }
 
 .panel {
-  padding: 1rem 1.5rem;
-  box-sizing: border-box;
+  padding: 1rem;
 }
 
 .panel-left {
@@ -28,7 +27,7 @@ body {
 }
 
 .panel-right {
-  background: radial-gradient(circle at top, #1f2833, #0b0c10);
+  background: #0b0c10;
 }
 
 .group {
@@ -36,9 +35,7 @@ body {
 }
 
 .group h2 {
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 0.9rem;
   margin-bottom: 0.5rem;
   color: #66fcf1;
 }
@@ -46,49 +43,28 @@ body {
 label {
   display: flex;
   flex-direction: column;
-  font-size: 0.85rem;
   margin-bottom: 0.75rem;
 }
 
-input[type="text"],
-input[type="number"],
-select {
+input, select {
   margin-top: 0.25rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid #333;
+  padding: 0.4rem;
   background: #0b0c10;
+  border: 1px solid #333;
   color: #e5e5e5;
 }
 
-input[type="range"] {
-  margin-top: 0.5rem;
-}
-
-.file-upload input[type="file"] {
-  margin-top: 0.5rem;
-}
-
 button {
-  padding: 0.5rem 0.9rem;
-  margin-right: 0.5rem;
-  margin-bottom: 0.5rem;
-  border-radius: 4px;
-  border: none;
+  padding: 0.5rem 1rem;
   background: #45a29e;
+  border: none;
   color: #0b0c10;
-  font-weight: 600;
   cursor: pointer;
+  margin-right: 0.5rem;
 }
 
 button:hover {
   background: #66fcf1;
-}
-
-.privacy-note {
-  font-size: 0.75rem;
-  color: #c5c6c7;
-  margin-top: 0.5rem;
 }
 
 #previewContainer {
