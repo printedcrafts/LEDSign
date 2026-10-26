@@ -6,9 +6,11 @@ export function createSignGeometry(options) {
   const group = new THREE.Group();
   const font = options.fontObject;
 
-  if (!font || !options.text) {
-    return group;
-  }
+if (!font || !options.text || options.text.trim().length === 0) {
+  console.warn("No font loaded or empty text");
+  return group;
+}
+
 
   // 1. TEXT → PATH COMMANDS
   const commands = getTextPath(font, options.text, 80);
