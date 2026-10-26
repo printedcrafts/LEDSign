@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Printed Sign Designer</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="module" src="src/app.js"></script>
+</head>
+<body>
+  <header class="header">
+    <h1>3D Printed Sign Designer</h1>
+    <p>Design, preview, and download printable sign files—right in your browser.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel panel-left">
+      <div class="group">
+        <h2>Text & Font</h2>
+        <label>
+          <span>Sign text</span>
+          <input id="textInput" type="text" placeholder="Enter your text" />
+        </label>
+
+        <label>
+          <span>Font</span>
+          <select id="fontSelect">
+            <option value="builtin-sans">Sans (built-in)</option>
+            <option value="builtin-script">Script (built-in)</option>
+          </select>
+        </label>
+
+        <label class="file-upload">
+          <span>Upload custom font (.ttf / .otf)</span>
+          <input id="fontUpload" type="file" accept=".ttf,.otf" />
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Sign style</h2>
+        <label>
+          <span>Sign type</span>
+          <select id="signType">
+            <option value="tube">Tube only</option>
+            <option value="tube-backing">Tube + backing plate</option>
+          </select>
+        </label>
+
+        <label>
+          <span>LED profile</span>
+          <select id="ledProfile">
+            <option value="small">Small (2.0 mm)</option>
+            <option value="medium">Medium (3.0 mm)</option>
+            <option value="large">Large (4.0 mm)</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Backing thickness (mm)</span>
+          <input id="backingThickness" type="range" min="2" max="8" value="4" />
+        </label>
+      </div>
+
+      <div class="group">
+        <h2>Mounting options</h2>
+
+        <label>
+          <input id="holesEnabled" type="checkbox" />
+          <span>Holes for hanging</span>
+        </label>
+        <div class="sub-options" data-for="holesEnabled">
+          <label>
+            <span>Hole diameter (mm)</span>
+            <input id="holeDiameter" type="number" value="4" min="2" max="10" />
+          </label>
+          <label>
+            <span>Hole offset from edge (mm)</span>
+            <input id="holeOffset" type="number" value="10" min="5" max="50" />
+          </label>
+        </div>
+
+        <label>
+          <input id="postsEnabled" type="checkbox" />
+          <span>Rear posts</span>
+        </label>
+        <div class="sub-options" data-for="postsEnabled">
+          <label>
+            <span>Post length (mm)</span>
+            <input id="postLength" type="number" value="15" min="5" max="50" />
+          </label>
+        </div>
+
+        <label>
+          <input id="slatEnabled" type="checkbox" />
+          <span>Slat wall mounts</span>
+        </label>
+      </div>
+
+      <div class="group export-group">
+        <h2>Export</h2>
+        <button id="downloadStl">Download STL</button>
+        <button id="downloadObj">Download OBJ</button>
+        <button id="download3mf">Download 3MF (beta)</button>
+        <p class="privacy-note">
+          All processing happens in your browser. No fonts, text, or files are stored or uploaded.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel panel-right">
+      <div id="previewContainer"></div>
+    </section>
+  </main>
+</body>
+</html>
