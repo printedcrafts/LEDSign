@@ -9,7 +9,7 @@
 <body>
   <header class="header">
     <h1>3D Printed Sign Designer</h1>
-    <p>Design, preview, and download printable sign files—right in your browser.</p>
+    <p>Design, preview, and download printable sign files.</p>
   </header>
 
   <main class="layout">
@@ -26,83 +26,35 @@
           <select id="fontSelect">
             <option value="builtin-sans">Sans (built-in)</option>
             <option value="builtin-script">Script (built-in)</option>
+            <option value="custom">Custom font</option>
           </select>
         </label>
 
-        <label class="file-upload">
+        <label>
           <span>Upload custom font (.ttf / .otf)</span>
           <input id="fontUpload" type="file" accept=".ttf,.otf" />
         </label>
       </div>
 
       <div class="group">
-        <h2>Sign style</h2>
-        <label>
-          <span>Sign type</span>
-          <select id="signType">
-            <option value="tube">Tube only</option>
-            <option value="tube-backing">Tube + backing plate</option>
-          </select>
-        </label>
-
-        <label>
-          <span>LED profile</span>
-          <select id="ledProfile">
-            <option value="small">Small (2.0 mm)</option>
-            <option value="medium">Medium (3.0 mm)</option>
-            <option value="large">Large (4.0 mm)</option>
-          </select>
-        </label>
-
-        <label>
-          <span>Backing thickness (mm)</span>
-          <input id="backingThickness" type="range" min="2" max="8" value="4" />
-        </label>
+        <h2>LED Model</h2>
+        <select id="ledProfile">
+          <option value="WS2812B">WS2812B</option>
+          <option value="WS2813">WS2813</option>
+          <option value="SK6812">SK6812</option>
+          <option value="WS2815">WS2815</option>
+        </select>
       </div>
 
       <div class="group">
-        <h2>Mounting options</h2>
-
-        <label>
-          <input id="holesEnabled" type="checkbox" />
-          <span>Holes for hanging</span>
-        </label>
-        <div class="sub-options" data-for="holesEnabled">
-          <label>
-            <span>Hole diameter (mm)</span>
-            <input id="holeDiameter" type="number" value="4" min="2" max="10" />
-          </label>
-          <label>
-            <span>Hole offset from edge (mm)</span>
-            <input id="holeOffset" type="number" value="10" min="5" max="50" />
-          </label>
-        </div>
-
-        <label>
-          <input id="postsEnabled" type="checkbox" />
-          <span>Rear posts</span>
-        </label>
-        <div class="sub-options" data-for="postsEnabled">
-          <label>
-            <span>Post length (mm)</span>
-            <input id="postLength" type="number" value="15" min="5" max="50" />
-          </label>
-        </div>
-
-        <label>
-          <input id="slatEnabled" type="checkbox" />
-          <span>Slat wall mounts</span>
-        </label>
+        <h2>Model</h2>
+        <button id="generateModel">Generate Model</button>
       </div>
 
       <div class="group export-group">
         <h2>Export</h2>
         <button id="downloadStl">Download STL</button>
         <button id="downloadObj">Download OBJ</button>
-        <button id="download3mf">Download 3MF (beta)</button>
-        <p class="privacy-note">
-          All processing happens in your browser. No fonts, text, or files are stored or uploaded.
-        </p>
       </div>
     </section>
 
