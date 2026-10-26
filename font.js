@@ -12,7 +12,6 @@ export async function loadBuiltinFonts() {
 export async function loadCustomFont(file) {
   const buffer = await file.arrayBuffer();
   customFont = opentype.parse(buffer);
-  return customFont;
 }
 
 export function getCurrentFont(state) {
@@ -22,6 +21,5 @@ export function getCurrentFont(state) {
 }
 
 export function getTextPath(font, text, size = 80) {
-  const path = font.getPath(text, 0, 0, size);
-  return path.commands;
+  return font.getPath(text, 0, 0, size).commands;
 }
