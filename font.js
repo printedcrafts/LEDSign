@@ -5,7 +5,6 @@ let builtinScript = null;
 let customFont = null;
 
 export async function loadBuiltinFonts() {
-  // WORKING TTF FILES
   builtinSans = await opentype.load("https://fonts.gstatic.com/s/opensans/v34/mem8YaGs126MiZpBA-UFVZ0e.ttf");
   builtinScript = await opentype.load("https://fonts.gstatic.com/s/dancingscript/v17/If2RXTr6YS-zF4S-kcSWSVi_kQ.ttf");
 }
