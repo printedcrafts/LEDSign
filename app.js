@@ -17,7 +17,9 @@ const state = {
   slatEnabled: false,
 };
 
-await loadBuiltinFonts();
+loadBuiltinFonts().then(() => {
+  console.log("Fonts loaded");
+});
 
 const preview = initPreview(document.getElementById('previewContainer'));
 
