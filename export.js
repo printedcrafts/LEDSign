@@ -22,9 +22,3 @@ export function downloadObj(mesh) {
   const objString = exporter.parse(mesh);
   triggerDownload(objString, 'sign.obj', 'text/plain');
 }
-
-export function download3mf(mesh) {
-  const exporter = new STLExporter();
-  const stlString = exporter.parse(mesh);
-  triggerDownload(stlString, 'sign.3mf', 'application/octet-stream');
-}
