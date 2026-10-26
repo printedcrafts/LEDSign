@@ -85,13 +85,13 @@ if (!font || !options.text || options.text.trim().length === 0) {
   if (points.length > 1) {
     const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
     const tubeGeom = new THREE.TubeGeometry(curve, 300, tubeRadius, 24, false);
-    const tubeMat = new THREE.MeshStandardMaterial({
-      color: 0x66fcf1,
-      emissive: 0x0a1f2f,
-      emissiveIntensity: 0.8,
-      metalness: 0.1,
-      roughness: 0.4
-    });
+const tubeMat = new THREE.MeshStandardMaterial({
+  color: 0x66fcf1,
+  emissive: 0x66fcf1,
+  emissiveIntensity: 2.5,
+  metalness: 0.0,
+  roughness: 0.2
+});
     const tube = new THREE.Mesh(tubeGeom, tubeMat);
     group.add(tube);
   }
