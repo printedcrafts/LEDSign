@@ -4,10 +4,10 @@ let builtinSans = null;
 let builtinScript = null;
 let customFont = null;
 
-// Load built-in fonts (JSON or TTF)
 export async function loadBuiltinFonts() {
-  builtinSans = await opentype.load("https://cdn.jsdelivr.net/npm/@fontsource/open-sans/files/open-sans-latin-400-normal.woff");
-  builtinScript = await opentype.load("https://cdn.jsdelivr.net/npm/@fontsource/dancing-script/files/dancing-script-latin-400-normal.woff");
+  // WORKING TTF FILES
+  builtinSans = await opentype.load("https://fonts.gstatic.com/s/opensans/v34/mem8YaGs126MiZpBA-UFVZ0e.ttf");
+  builtinScript = await opentype.load("https://fonts.gstatic.com/s/dancingscript/v17/If2RXTr6YS-zF4S-kcSWSVi_kQ.ttf");
 }
 
 export async function loadCustomFont(file) {
