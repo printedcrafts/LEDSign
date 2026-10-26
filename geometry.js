@@ -6,10 +6,7 @@ export function createSignGeometry(options) {
   const group = new THREE.Group();
   const font = options.fontObject;
 
-  if (!font || !options.text) {
-    console.warn("No font loaded or empty text");
-    return group;
-  }
+  if (!font || !options.text) return group;
 
   const commands = getTextPath(font, options.text, 80);
 
@@ -21,31 +18,22 @@ export function createSignGeometry(options) {
       shape.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
     else if (cmd.type === "Q")
       shape.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
-    else if (cmd.type === "Z") shape.closePath();
   });
 
-  const extrudeSettings = {
-    depth: options.backingThickness,
-    bevelEnabled: false
-  };
-
-  const backingGeom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-  const backingMat = new THREE.MeshStandardMaterial({ color: 0x1f2833 });
-  const backing = new THREE.Mesh(backingGeom, backingMat);
+  const backingGeom = new THREE.ExtrudeGeometry(shape, { depth: 4, bevelEnabled: false });
+  const backing = new THREE.Mesh(backingGeom, new THREE.MeshStandardMaterial({ color: 0x1f2833 }));
   group.add(backing);
 
-  const profile = LED_PROFILES[options.ledProfile];
-  const tubeRadius = profile.tubeDiameter / 2;
+  const tubeRadius = LED_PROFILES[options.ledProfile].tubeDiameter / 2;
 
   const points = commands
     .filter(c => c.x !== undefined && c.y !== undefined)
-    .map(c => new THREE.Vector3(c.x, -c.y, options.backingThickness + tubeRadius));
+    .map(c => new THREE.Vector3(c.x, -c.y, 6));
 
   if (points.length > 1) {
     const curve = new THREE.CatmullRomCurve3(points);
     const tubeGeom = new THREE.TubeGeometry(curve, 200, tubeRadius, 16, false);
-    const tubeMat = new THREE.MeshStandardMaterial({ color: 0x66fcf1 });
-    const tube = new THREE.Mesh(tubeGeom, tubeMat);
+    const tube = new THREE.Mesh(tubeGeom, new THREE.MeshStandardMaterial({ color: 0x66fcf1 }));
     group.add(tube);
   }
 
