@@ -1,4 +1,5 @@
 import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { LED_PROFILES } from './ledProfiles.js';
 
 export function createSignGeometry(options) {
   const group = new THREE.Group();
@@ -15,12 +16,8 @@ export function createSignGeometry(options) {
   backing.position.set(0, options.backingThickness / 2, 0);
   group.add(backing);
 
-  const tubeRadius =
-    options.ledProfile === 'small'
-      ? 2
-      : options.ledProfile === 'large'
-      ? 4
-      : 3;
+const profile = LED_PROFILES[options.ledProfile] || LED_PROFILES["WS2812B"];
+const tubeRadius = profile.tubeDiameter / 2;
 
   const tubeGeom = new THREE.CylinderGeometry(
     tubeRadius,
