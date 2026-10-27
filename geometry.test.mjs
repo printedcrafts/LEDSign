@@ -1,8 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import {buildMesh,exportBinarySTL,exportOBJ} from '../src/geometry.js';
-test('single cell makes a closed cube with 12 triangles',()=>{const m=buildMesh(new Uint8Array([1]),1,1,2,4,{enabled:false});assert.equal(m.triangles,12);assert.equal(m.width,2);assert.equal(m.depth,4);});
-test('adjacent pixels omit internal faces',()=>{const m=buildMesh(new Uint8Array([1,1]),2,1,2,4,{enabled:false});assert.equal(m.triangles,20);});
-test('backing connects text and has expected height',()=>{const m=buildMesh(new Uint8Array([1]),1,1,2,4,{enabled:true,padding:2,thickness:3});assert.equal(m.width,6);assert.equal(m.depth,7);assert.ok(m.triangles>12);});
-test('STL binary triangle count and length match',async()=>{const m=buildMesh(new Uint8Array([1]),1,1,2,4,{enabled:false});const b=await exportBinarySTL(m).arrayBuffer();assert.equal(b.byteLength,84+12*50);assert.equal(new DataView(b).getUint32(80,true),12);});
-test('OBJ contains correct face count',async()=>{const m=buildMesh(new Uint8Array([1]),1,1,2,4,{enabled:false});const s=await exportOBJ(m).text();assert.equal(s.split('\n').filter(l=>l.startsWith('f ')).length,12);});
+import test from 'node:test';import assert from 'node:assert/strict';import {PROFILES,defaults,createGrid,skeletonize,generateMeshes,count,components,stl,gridSvgPath} from '../src/geometry.js';
+test('LED type drives channel width/depth',()=>{const a=defaults('neon6'),b=defaults('neon10');assert.ok(b.inside>a.inside);assert.ok(b.channelHeight>a.channelHeight);assert.equal(PROFILES.ws2812.kind,'bare');});
+test('skeleton keeps straight line',()=>{const g=createGrid(20,20);for(let x=3;x<17;x++)for(let y=8;y<12;y++)g.data[y*g.w+x]=1;const s=skeletonize(g);assert.ok(count(s)>3);assert.ok(count(s)<count(g));});
+test('fabrication creates open slot and watertight-like surface',()=>{const g=createGrid(50,35);for(let x=6;x<44;x++)g.data[17*g.w+x]=1;const p=defaults('neon6');const o=generateMeshes(g,{cell:1,inside:p.inside,outside:p.outside,floor:p.floor,channelHeight:p.channelHeight,backingPadding:4,backingThickness:3,backing:true});assert.ok(o.channel.triangles.length>0);assert.ok(o.base.triangles.length>0);assert.ok(count(o.outer)>count(o.inner));assert.equal(o.components.length,1);assert.ok(stl(o.channel).startsWith('solid'));});
+test('can omit backing',()=>{const g=createGrid(25,25);g.data[12*25+12]=1;const o=generateMeshes(g,{cell:1,inside:3,outside:7,floor:2,channelHeight:8,backing:false,backingPadding:3,backingThickness:2});assert.equal(o.base,null);});
+test('island diagnostics and SVG geometry',()=>{const g=createGrid(30,25);g.data[10*30+4]=1;g.data[10*30+25]=1;assert.equal(components(g).length,2);assert.match(gridSvgPath(g,1),/^M/);});
