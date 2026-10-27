@@ -1,10 +1,7 @@
-# LEDSign — custom font contour stability patch
+LEDSign custom-font centerline editor
 
-Upload index.html and app.js from this package to the ROOT of GitHub `main` together; keep style.css if already current. This package also includes matching style.css.
+Deployment: replace index.html, app.js, style.css in the root of main.
 
-## What this addresses
-The previous skeleton tracer falsely accepted disconnected small branches as complete Brittany Signature lettering. The new mode uses the real glyph perimeter, with closed-loop smoothing, so lettering remains recognizable. Custom-font upload, rear wiring routes, alignment, and export controls remain present. Cache busting in index.html requests a new app.js revision.
+Uploaded fonts are rendered only as a dim reference. Click Draw LED path, then click successive points along the middle of the neon tube. Finish section for each separate LED segment. STL export uses those actual user-defined centerlines. Use rear wiring route tools for electrical links.
 
-**Critical fabrication limitation:** outline routes are not single-stroke LED centerlines. Printed channels may follow BOTH edges of thick strokes. Do not assume generated channels are suitable for neon flex without route review and physical validation. A true editable centerline tracing workflow is still required.
-
-Testing: JS syntax, package extraction, and basic static regression checks only; Brittany Signature font file was not provided, so that exact font has not been validated end-to-end.
+Limits: manual placement required; curved routes are polyline approximations; no automated font-to-neon path inference, bend radius enforcement, mechanical locks, or manufacturer-validated retention features. Verify STLs in slicer and LED hardware fit before manufacturing.
