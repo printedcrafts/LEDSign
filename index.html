@@ -6,8 +6,11 @@
   <meta name="theme-color" content="#101827">
   <meta name="description" content="Create and export 3D printable text signs in your browser.">
   <title>LEDSign — 3D Sign Studio</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./src/app.js"></script>
+  <style>
+:root{color-scheme:dark;--bg:#0a101b;--panel:#151f2e;--line:#283648;--text:#eaf3fb;--muted:#9caec2;--accent:#55e4be;--accent-dark:#0b332e;--input:#0d1623}*{box-sizing:border-box}html{min-width:320px}body{margin:0;background:radial-gradient(ellipse at 60% -10%,#1a3040 0%,var(--bg) 49%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.42}.topbar{height:72px;padding:0 max(24px,calc((100vw - 1350px)/2));display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #273244}.brand{text-decoration:none;display:flex;align-items:center;gap:12px;color:#fff;font-size:24px;font-weight:850;letter-spacing:-1px}.brand-icon{display:grid;place-items:center;background:var(--accent);color:#09251e;width:36px;height:36px;border-radius:10px;font-size:26px}.brand-accent{color:var(--accent)}.top-tag{font-size:11px;letter-spacing:2px;color:#9ba9b7;font-weight:700}.tag-dot{color:var(--accent);padding:0 7px}.shell{max-width:1398px;margin:auto;padding:35px 24px 20px}.intro{margin:0 0 26px}.intro .eyebrow{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:3px;margin:0 0 10px}.intro h1{font-weight:850;font-size:clamp(27px,3.4vw,44px);letter-spacing:-1.5px;line-height:1.12;margin:0 0 10px}.intro h1 em{font-style:normal;color:var(--accent)}.intro>p:last-child{margin:0;color:var(--muted);font-size:14px;line-height:1.6}.layout{display:grid;grid-template-columns:minmax(335px,410px) minmax(0,1fr);gap:20px;align-items:start}.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 20px 60px #0002}.editor{padding:25px}.panel-title,.preview-heading{display:flex;align-items:center;gap:10px;margin-bottom:26px}.section-number{color:var(--accent);border:1px solid #377568;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:1px;padding:6px 7px}.panel h2{margin:0;font-size:18px;letter-spacing:-.4px}.field{margin-bottom:19px}.field label,.toggle-row label{display:block;font-size:13px;font-weight:750;margin-bottom:9px}.muted,small{color:var(--muted);font-weight:400}small{display:block;font-size:11px;line-height:1.55;margin-top:8px}input[type=text],select{width:100%;height:43px;padding:0 13px;background:var(--input);color:var(--text);border:1px solid #3c4a5c;border-radius:8px;outline:none}input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px #55e4be22}select{color-scheme:dark}.upload-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}.upload-label{display:inline-block!important;margin:0!important;color:var(--accent);font-size:12px!important;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.upload-row input{position:absolute;width:1px;height:1px;opacity:0}.upload-row .muted{font-size:11px;overflow-wrap:anywhere}.separator{border-top:1px solid var(--line);margin:22px 0}.label-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.label-row output{color:var(--accent);font-size:12px;font-weight:800}.field input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}.range-ends{display:flex;justify-content:space-between;color:#70859c;font-size:10px;margin-top:2px}.toggle-row{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:16px}.toggle-row label{margin:0}.toggle-row small{margin-top:5px}.toggle-row input{width:21px;height:21px;accent-color:var(--accent);flex-shrink:0}.backing-fields{padding:12px 15px 1px;background:#0c1723;border:1px solid #263c48;border-radius:9px}.backing-fields[hidden]{display:none}.backing-fields .field{margin-bottom:12px}.button{border:1px solid #465769;border-radius:9px;height:44px;padding:0 14px;font-size:13px;font-weight:750}.primary{width:100%;background:var(--accent);border-color:var(--accent);color:#07261e;box-shadow:0 4px 18px #55e4be20}.primary:hover{background:#8af2d6}.export-title{color:#8fa5b9;letter-spacing:1.8px;font-size:10px;font-weight:800;margin:25px 0 11px}.button-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.secondary{background:#1c2a3a;color:#e0ecf7}.secondary:not(:disabled):hover{border-color:var(--accent)}.note{font-size:11px;line-height:1.55;color:#91a4b5;margin:16px 0 0}.preview-heading{justify-content:space-between;padding:24px 25px 20px;margin:0}.preview-heading>div{display:flex;gap:10px;align-items:center}.text-button{color:var(--muted);font-size:12px;background:transparent;border:0;padding:8px}.text-button:hover{color:var(--accent)}.canvas-wrap{position:relative;margin:0 18px;background:radial-gradient(circle at center,#223247 0%,#0b1422 74%);border:1px solid #344356;border-radius:9px;min-height:380px;height:clamp(380px,43vw,615px);overflow:hidden}#viewport{display:block;width:100%;height:100%;touch-action:none;cursor:grab}#viewport:active{cursor:grabbing}.canvas-instruction{position:absolute;bottom:16px;left:0;right:0;text-align:center;pointer-events:none;color:#a3b5c7;font-size:10px;font-weight:750;letter-spacing:1.7px}.canvas-instruction span{padding:0 10px;color:var(--accent)}.metrics{margin:19px 18px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}.metrics>div{background:#111b28;padding:16px 8px;text-align:center}.metrics span{display:block;font-size:10px;letter-spacing:1.2px;color:#97acc0;margin-bottom:7px;font-weight:750}.metrics strong{font-size:16px;color:var(--accent);white-space:nowrap}.status{margin:0 18px 19px;border:1px solid #395b58;background:#11312e;color:#a9efda;padding:13px;border-radius:8px;font-size:12px;line-height:1.5}.status.error{border-color:#805454;background:#362429;color:#ffd2cb}footer{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;color:#788fa3;font-size:11px;padding:26px 2px}@media(max-width:920px){.layout{grid-template-columns:1fr}.canvas-wrap{height:440px}.top-tag{display:none}}@media(max-width:550px){.shell{padding:25px 12px}.editor{padding:18px}.canvas-wrap{margin:0 10px;height:335px;min-height:335px}.preview-heading{padding:18px 14px}.metrics{margin:12px 10px;grid-template-columns:repeat(2,minmax(0,1fr))}.status{margin:0 10px 12px}.button-pair{grid-template-columns:1fr}.intro h1{letter-spacing:-.5px}}
+
+</style>
+  
 </head>
 <body>
   <header class="topbar">
@@ -36,5 +39,160 @@
     </div>
     <footer><span>LEDSign Studio</span><span>All model generation happens locally in your browser · No uploads · No account required</span></footer>
   </main>
+<script>
+/** Dependency-free generation of exposed faces for an extruded raster mask.
+ * All coordinates are millimeters. Front and back faces are triangulated on
+ * a regular grid; side faces are emitted only at visible bitmap boundaries.
+ */
+function buildMesh(mask, cols, rows, pixelMM, letterDepth, plate) {
+  if (!mask || mask.length !== cols * rows || cols <= 0 || rows <= 0) throw new Error('Invalid text raster.');
+  const padCells = plate.enabled ? Math.max(1, Math.ceil(plate.padding / pixelMM)) : 0;
+  const w = cols + padCells * 2, h = rows + padCells * 2;
+  const offsetX = -w * pixelMM / 2, offsetY = -h * pixelMM / 2;
+  const plateHeight = plate.enabled ? plate.thickness : 0;
+  const zmax = plateHeight + letterDepth;
+  const vertices = [];
+  const normals = [];
+  const quads = [];
+  const occupied = (x, y) => x >= 0 && x < cols && y >= 0 && y < rows && !!mask[y * cols + x];
+  function face(a, b, c, d, normal) {
+    const idx = vertices.length / 3;
+    for (const v of [a,b,c,a,c,d]) { vertices.push(...v); normals.push(...normal); }
+    // A quad is also retained for fast shaded Canvas preview.
+    quads.push({ corners:[a,b,c,d], normal });
+    return idx;
+  }
+  const coordX = x => offsetX + x * pixelMM;
+  const coordY = y => offsetY + (h - y) * pixelMM;
+  function emitCell(x, y, z0, z1, top, bottom, neighbors) {
+    const x0=coordX(x),x1=coordX(x+1),y1=coordY(y),y0=coordY(y+1);
+    if(top) face([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],[0,0,1]);
+    if(bottom) face([x0,y1,z0],[x1,y1,z0],[x1,y0,z0],[x0,y0,z0],[0,0,-1]);
+    if(!neighbors.left) face([x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],[-1,0,0]);
+    if(!neighbors.right) face([x1,y1,z0],[x1,y1,z1],[x1,y0,z1],[x1,y0,z0],[1,0,0]);
+    if(!neighbors.top) face([x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[0,1,0]);
+    if(!neighbors.bottom) face([x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[x0,y0,z0],[0,-1,0]);
+  }
+  // Solid underlying plate, with text rising continuously from its upper face.
+  if (plate.enabled) for(let y=0;y<h;y++) for(let x=0;x<w;x++) {
+    const ink = occupied(x-padCells,y-padCells);
+    emitCell(x,y,0,plateHeight,!ink,true,{left:x>0,right:x<w-1,top:y>0,bottom:y<h-1});
+  }
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(occupied(x,y)) {
+    const pX=x+padCells,pY=y+padCells;
+    emitCell(pX,pY,plateHeight,zmax,true,!plate.enabled,{
+      left:occupied(x-1,y),right:occupied(x+1,y),top:occupied(x,y-1),bottom:occupied(x,y+1)
+    });
+  }
+  if(vertices.length===0) throw new Error('No geometry was generated.');
+  return {vertices:new Float32Array(vertices),normals:new Float32Array(normals),quads,width:w*pixelMM,height:h*pixelMM,depth:zmax,triangles:vertices.length/9};
+}
+function exportBinarySTL(mesh) {
+  const {vertices,normals}=mesh, triangles=vertices.length/9;
+  const buffer=new ArrayBuffer(84+triangles*50),view=new DataView(buffer);
+  const label=new TextEncoder().encode('LEDSign 3D generated model');
+  new Uint8Array(buffer,0,label.length).set(label);
+  view.setUint32(80,triangles,true);
+  let at=84;
+  for(let i=0;i<triangles;i++) {
+    for(let j=0;j<3;j++,at+=4)view.setFloat32(at,normals[i*9+j],true);
+    for(let j=0;j<9;j++,at+=4)view.setFloat32(at,vertices[i*9+j],true);
+    view.setUint16(at,0,true);at+=2;
+  }
+  return new Blob([buffer],{type:'model/stl'});
+}
+function exportOBJ(mesh) {
+  const {vertices,normals}=mesh;
+  const lines=['# LEDSign 3D model, units: millimeters','o LEDSign'];
+  for(let i=0;i<vertices.length;i+=3)lines.push(`v ${vertices[i]} ${vertices[i+1]} ${vertices[i+2]}`);
+  for(let i=0;i<normals.length;i+=9)lines.push(`vn ${normals[i]} ${normals[i+1]} ${normals[i+2]}`);
+  for(let i=0;i<vertices.length/3;i+=3){const n=i/3+1;lines.push(`f ${i+1}//${n} ${i+2}//${n} ${i+3}//${n}`);}
+  return new Blob([lines.join('\n')+'\n'],{type:'text/plain'});
+}
+
+
+
+const $=id=>document.getElementById(id);
+const canvas=$('viewport'),ctx=canvas.getContext('2d');
+let mesh=null, yaw=-0.37,pitch=-0.28,zoom=1,drag=null,frame=0;
+let customFontURL=null;
+const ledNotes={none:'This version creates text and backing geometry, not LED channels or wiring holes.',ws2812b:'WS2812B: typically 5 V addressable LEDs. Strip dimensions vary; no channels or electrical features are generated.',ws2813:'WS2813: typically 5 V with backup data line. Confirm strip dimensions and power needs.',sk6812:'SK6812: typically 5 V; variants include RGBW. Confirm strip dimensions and wiring.',ws2815:'WS2815: typically 12 V addressable LEDs. Check polarity, supply ratings, and strip dimensions.'};
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error);}
+function syncFields(){for(const [id,out] of [['width','widthOut'],['depth','depthOut'],['padding','paddingOut'],['plateDepth','plateDepthOut']])$(out).textContent=$(id).value+' mm';$('backingFields').hidden=!$('backing').checked;$('ledInfo').textContent=ledNotes[$('ledType').value];}
+function styleFont(){const styles={sans:'900 140px Arial, Helvetica, sans-serif',serif:'bold 140px Georgia, serif',mono:'bold 140px "Courier New", monospace',rounded:'900 140px "Trebuchet MS", Verdana, sans-serif',custom:'140px "LEDSignCustom"'};return styles[$('fontStyle').value];}
+async function rasterize(){
+  const text=$('signText').value.trim().replace(/\s+/g,' ');
+  if(!text)throw Error('Enter some text to generate your sign.');
+  if($('fontStyle').value==='custom'&&!customFontURL)throw Error('Upload a font file first, or select a built-in style.');
+  await document.fonts.ready;
+  const measure=document.createElement('canvas').getContext('2d');measure.font=styleFont();
+  const metrics=measure.measureText(text);
+  const naturalWidth=Math.ceil(metrics.width+32),naturalHeight=190;
+  const source=document.createElement('canvas');source.width=Math.max(2,naturalWidth);source.height=naturalHeight;
+  const sc=source.getContext('2d',{willReadFrequently:true});sc.font=styleFont();sc.fillStyle='white';sc.textBaseline='alphabetic';sc.fillText(text,16,145);
+  const data=sc.getImageData(0,0,source.width,source.height).data;
+  let left=source.width,top=source.height,right=-1,bottom=-1;
+  for(let y=0;y<source.height;y++)for(let x=0;x<source.width;x++)if(data[(y*source.width+x)*4+3]>=90){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+  if(right<left)throw Error('Could not render that text in the selected font.');
+  // Limit mesh size for a responsive browser and maintain aspect ratio.
+  const cols=Math.max(8,Math.min(150,Math.ceil(right-left+1)));
+  const rows=Math.max(1,Math.round((bottom-top+1)*cols/(right-left+1)));
+  if(rows>145)throw Error('Text proportions are too tall. Please try another font.');
+  const raster=document.createElement('canvas');raster.width=cols;raster.height=rows;
+  const rc=raster.getContext('2d',{willReadFrequently:true});rc.imageSmoothingEnabled=true;rc.imageSmoothingQuality='high';
+  rc.drawImage(source,left,top,right-left+1,bottom-top+1,0,0,cols,rows);
+  const p=rc.getImageData(0,0,cols,rows).data,mask=new Uint8Array(cols*rows);
+  for(let i=0;i<mask.length;i++)mask[i]=p[i*4+3]>100?1:0;
+  if(!mask.some(v=>v))throw Error('The text raster was empty.');
+  return {mask,cols,rows,pixelMM:Number($('width').value)/cols};
+}
+async function generate(){
+  $('generate').disabled=true;status('Generating geometry…');
+  try {
+    // Yield a frame to show progress before the CPU-intensive build.
+    await new Promise(resolve=>requestAnimationFrame(resolve));
+    const raster=await rasterize();
+    const next=buildMesh(raster.mask,raster.cols,raster.rows,raster.pixelMM,Number($('depth').value),{enabled:$('backing').checked,padding:Number($('padding').value),thickness:Number($('plateDepth').value)});
+    mesh=next;zoom=1;yaw=-0.37;pitch=-0.28;
+    $('metricWidth').textContent=mesh.width.toFixed(1)+' mm';$('metricHeight').textContent=mesh.height.toFixed(1)+' mm';$('metricDepth').textContent=mesh.depth.toFixed(1)+' mm';$('metricFaces').textContent=mesh.triangles.toLocaleString();
+    $('exportStl').disabled=false;$('exportObj').disabled=false;
+    status(`3D model ready · ${mesh.triangles.toLocaleString()} triangles. Download an STL or OBJ file below.`);scheduleDraw();
+  } catch(e){mesh=null;$('exportStl').disabled=true;$('exportObj').disabled=true;status(e.message||'Unable to generate sign.',true);scheduleDraw();}
+  finally{$('generate').disabled=false;}
+}
+function download(blob,extension){const name=($('signText').value.trim().replace(/[^a-z0-9_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,36)||'LEDSign')+'.'+extension;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+function exportFile(kind){if(!mesh)return;try{download(kind==='stl'?exportBinarySTL(mesh):exportOBJ(mesh),kind);status(`${kind.toUpperCase()} download started. Verify model geometry and scale in your slicer.`);}catch(e){status('Export failed: '+e.message,true);}}
+function transform(v){const [x,y,z]=v,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);const tx=x*cy+z*sy,tz=-x*sy+z*cy;return [tx,y*cp-tz*sp,y*sp+tz*cp];}
+function draw(){
+  frame=0;const rect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,rect.width),h=Math.max(1,rect.height);
+  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  const gradient=ctx.createLinearGradient(0,0,0,h);gradient.addColorStop(0,'#1a2b3d');gradient.addColorStop(1,'#0b1522');ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);
+  const grid=28;ctx.strokeStyle='#ffffff09';ctx.lineWidth=1;for(let x=w/2%grid;x<w;x+=grid){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}for(let y=h/2%grid;y<h;y+=grid){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  if(!mesh){ctx.textAlign='center';ctx.fillStyle='#9ab0c4';ctx.font='600 16px system-ui';ctx.fillText('Your 3D model will appear here',w/2,h/2);return;}
+  const scale=Math.min(w/(mesh.width+mesh.depth*2),h/(mesh.height+mesh.depth*3))*0.74*zoom;
+  const project=p=>{const v=transform([p[0],p[1],p[2]-mesh.depth/2]);return [w/2+v[0]*scale,h/2-v[1]*scale,v[2]];};
+  const faces=[];for(const q of mesh.quads){const n=transform(q.normal);if(n[2]<=0.02)continue;const corners=q.corners.map(project),depth=corners.reduce((s,v)=>s+v[2],0)/4;faces.push({corners,depth,n});}
+  faces.sort((a,b)=>a.depth-b.depth);
+  for(const f of faces){const l=Math.max(.32,Math.min(1,.55+.28*f.n[2]+.16*f.n[0]-.10*f.n[1]));ctx.fillStyle=`rgb(${Math.round(55*l)},${Math.round(228*l)},${Math.round(190*l)})`;ctx.beginPath();ctx.moveTo(f.corners[0][0],f.corners[0][1]);for(let i=1;i<4;i++)ctx.lineTo(f.corners[i][0],f.corners[i][1]);ctx.closePath();ctx.fill();}
+}
+function scheduleDraw(){if(!frame)frame=requestAnimationFrame(draw);}
+function setupInteraction(){let start;
+  canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY};yaw+=dx*.008;pitch=Math.max(-1.45,Math.min(1.45,pitch+dy*.008));scheduleDraw();});
+  const end=()=>drag=null;canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+  canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.35,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));scheduleDraw();},{passive:false});
+  $('resetView').addEventListener('click',()=>{yaw=-.37;pitch=-.28;zoom=1;scheduleDraw();});
+  if('ResizeObserver'in window)new ResizeObserver(scheduleDraw).observe($('canvasWrap'));else window.addEventListener('resize',scheduleDraw);
+}
+for(const el of ['width','depth','padding','plateDepth','backing','ledType'])$(el).addEventListener('input',syncFields);
+$('generate').addEventListener('click',generate);
+$('exportStl').addEventListener('click',()=>exportFile('stl'));
+$('exportObj').addEventListener('click',()=>exportFile('obj'));
+$('fontFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>10*1024*1024){status('Font files must be smaller than 10 MB.',true);return;}try{const url=URL.createObjectURL(file);const font=new FontFace('LEDSignCustom',`url("${url}")`);await font.load();document.fonts.add(font);if(customFontURL)URL.revokeObjectURL(customFontURL);customFontURL=url;$('fontStyle').value='custom';$('fontFilename').textContent=file.name;status('Font loaded. Generate your sign to apply it.');}catch(err){status('Could not load this font. Try a standard TTF or OTF.',true);}});
+try { syncFields();setupInteraction();scheduleDraw();generate(); }
+catch (error) { const node=document.getElementById('status'); if(node){node.textContent='Application initialization error: '+error.message;node.classList.add('error');} console.error(error); }
+
+</script>
 </body>
 </html>
