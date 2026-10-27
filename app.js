@@ -7,6 +7,7 @@ function status(t,bad=false){$('notice').textContent=t;$('notice').className=bad
 function createGrid(w,h,fill=0){return {w,h,data:new Uint8Array(w*h).fill(fill)};}
 const idx=(g,x,y)=>y*g.w+x;
 function dilate(g,r){const out=createGrid(g.w,g.h), rad=Math.max(0,Math.ceil(r)), offsets=[];for(let y=-rad;y<=rad;y++)for(let x=-rad;x<=rad;x++)if(x*x+y*y<=r*r+.25)offsets.push([x,y]);for(let y=0;y<g.h;y++)for(let x=0;x<g.w;x++)if(g.data[idx(g,x,y)])for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<g.w&&yy<g.h)out.data[idx(g,xx,yy)]=1;}return out;}
+function count(g){let total=0;for(const value of g.data)total+=value;return total;}
 function skeletonize(input){const g=createGrid(input.w,input.h);g.data.set(input.data);const {w,h}=g;let changed=true,iterations=0;while(changed&&iterations++<75){changed=false;for(let phase=0;phase<2;phase++){const remove=[];for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;if(!g.data[i])continue;const n=[g.data[i-w],g.data[i-w+1],g.data[i+1],g.data[i+w+1],g.data[i+w],g.data[i+w-1],g.data[i-1],g.data[i-w-1]];const s=n.reduce((a,b)=>a+b,0);if(s<2||s>6)continue;let transitions=0;for(let k=0;k<8;k++)if(!n[k]&&n[(k+1)%8])transitions++;if(transitions!==1)continue;if(phase===0?(n[0]*n[2]*n[4]||n[2]*n[4]*n[6]):(n[0]*n[2]*n[6]||n[0]*n[4]*n[6]))continue;remove.push(i);}for(const i of remove)g.data[i]=0;if(remove.length)changed=true;}}return g;}
 
 const glyph={
@@ -62,9 +63,12 @@ function pathsFromUploadedFont(){
   const rgba=ctx.getImageData(0,0,w,h).data;
   const mask=createGrid(w,h);
   for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>115?1:0;
-  if(count(mask)<10)throw Error('Font rendered no visible text. Try another TTF or OTF file.');
+  const ink=count(mask);
+  if(ink<10)throw Error('The uploaded font produced no visible pixels. Check the text and font file.');
   const sk=skeletonize(mask);
-  return traceSkeleton(sk);
+  const paths=traceSkeleton(sk);
+  if(!paths.length)throw Error('Font rendered but no continuous centerline paths were extracted.');
+  return paths;
 }
 function traceSkeleton(g){
   const {w,h}=g, mark=g.data;
@@ -77,7 +81,7 @@ function traceSkeleton(g){
   for(const [i,n] of nbr)if(n.length!==2)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
   for(const [i,n] of nbr)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
   if(!paths.length)throw Error('Font has no traceable strokes. Choose another font.');
-  return paths.filter(p=>p.length>=3).slice(0,280);
+  return paths.filter(p=>p.length>=2).slice(0,280);
 }
 async function uploadFont(file){
   if(!file)return;
@@ -165,7 +169,7 @@ function splitForBed(paths,bx,by,extent){
   }
  }return {pieces,cols,rows};
 }
-async function generate(){if(fontPreviewOnly){status('Font is displayed, but tracing failed. STL export is unavailable for this font; try a simpler font.',true);return;}
+async function generate(){if(fontPreviewOnly){status('Cannot generate STL: '+(traceMessage||'font centerline extraction did not complete')+'. Please review the font or edit the vector paths.',true);return;}
  try{
   if(!lines.length)throw Error('No lettering paths');
   const o=opts(),bx=+$('bedW').value,by=+$('bedH').value;
