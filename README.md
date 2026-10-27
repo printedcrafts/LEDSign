@@ -1,9 +1,10 @@
-# LEDSign rear wiring prototype
+# LEDSign — custom font contour stability patch
 
-Deploy `index.html`, `style.css`, and `app.js` together in the root of the GitHub Pages `main` branch. This release retains the Brittany Signature tracing fallback.
+Upload index.html and app.js from this package to the ROOT of GitHub `main` together; keep style.css if already current. This package also includes matching style.css.
 
-## Wiring
-Select **Start** and click the end of a visible LED path. Optionally select **Waypoint** and click one or more locations for the hidden rear wiring; select **End** and click the beginning of the next path. Green dashed lines mark the rear wiring route. The ZIP export includes separate rear-wire-raceway STL pieces, split to fit your configured printer bed.
+## What this addresses
+The previous skeleton tracer falsely accepted disconnected small branches as complete Brittany Signature lettering. The new mode uses the real glyph perimeter, with closed-loop smoothing, so lettering remains recognizable. Custom-font upload, rear wiring routes, alignment, and export controls remain present. Cache busting in index.html requests a new app.js revision.
 
-## Safety and manufacturing limitations
-The rear wiring conduits are *separate printed open-back raceways*, not grooves cut into a unified rear sign plate. The exporter does **not** automatically add the wire feed-through holes at the endpoints, join the raceways to the backing, electrically connect strips, or validate strain relief, voltage/current, bend radius, fire safety, or IP protection. Don't print or wire until those are reviewed. It does not include positive-locking dovetails. Inspect every STL with a slicer.
+**Critical fabrication limitation:** outline routes are not single-stroke LED centerlines. Printed channels may follow BOTH edges of thick strokes. Do not assume generated channels are suitable for neon flex without route review and physical validation. A true editable centerline tracing workflow is still required.
+
+Testing: JS syntax, package extraction, and basic static regression checks only; Brittany Signature font file was not provided, so that exact font has not been validated end-to-end.

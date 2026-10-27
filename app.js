@@ -87,6 +87,27 @@ function contourFallback(mask){
   }
   return paths.sort((a,b)=>b.length-a.length).slice(0,90);
 }
+
+// Closed-loop smoothing. Keep the glyph contours recognizable while reducing
+// stair steps from canvas sampling. Chaikin corner cutting cannot invent branches.
+function smoothContourLoop(path){
+  let a=path.slice(0,-1);
+  if(a.length<4)return path;
+  for(let pass=0;pass<2;pass++){
+    const b=[];
+    for(let i=0;i<a.length;i++){
+      const p=a[i],q=a[(i+1)%a.length];
+      b.push({x:p.x*.75+q.x*.25,y:p.y*.75+q.y*.25});
+      b.push({x:p.x*.25+q.x*.75,y:p.y*.25+q.y*.75});
+    }
+    a=b;
+  }
+  const step=Math.max(1,Math.ceil(a.length/800));
+  a=a.filter((_,i)=>i%step===0);
+  a.push({...a[0]});
+  return a;
+}
+
 function pathsFromUploadedFont(){
   const text=sourceText();
   const canvas=document.createElement('canvas');
@@ -107,15 +128,14 @@ function pathsFromUploadedFont(){
   for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>90?1:0;
   const ink=count(mask);
   if(ink<10)throw Error('Uploaded font did not render pixels.');
-  let traced=[];
-  try{traced=traceSkeleton(skeletonize(mask));}catch(e){console.warn('Centerline tracer:',e.message);}
-  // Highly branched handwritten fonts can produce unusable short fragments.
-  const significant=traced.filter(p=>p.length>=4);
-  if(significant.length>=1 && significant.length<180){traceMessage='Centerlines extracted.';return significant;}
-  const fallback=contourFallback(mask);
-  if(!fallback.length)throw Error('Could not extract centerlines or font contours.');
-  traceMessage='Outline fallback: generated channels follow the glyph boundaries, not the ideal neon stroke. Review before printing.';
-  return fallback;
+  // Never mistake disconnected skeleton fragments for valid signature lettering.
+  // The raster perimeter traces the actual uploaded glyph silhouette and preserves
+  // connected script lettering. This is an OUTLINE routing mode, not a centerline.
+  const contours=contourFallback(mask);
+  if (!contours.length) throw Error('No readable glyph contours found in the uploaded font.');
+  const refined=contours.map(p=>smoothContourLoop(p)).filter(p=>p.length>=5);
+  traceMessage='Glyph contour mode: paths follow the real letter edges, NOT single-stroke neon centerlines. Inspect LED routing before printing.';
+  return refined;
 }
 function traceSkeleton(g){
   const {w,h}=g,mark=g.data;
@@ -164,7 +184,7 @@ function addWirePoint(p){if(wireMode==='start'){wireDraft=[nearestLedPoint(p)];w
 function updateWireUI(){const el=$('routeStatus');if(!el)return;el.textContent=wireMode==='start'?'Click near the END of the first LED stroke.':wireMode==='end'?'Click near the START of the next LED stroke, or add a waypoint.':wireMode==='waypoint'?'Click anywhere to place a rear-wire waypoint.':`${wireRoutes.length} completed rear cable route(s). Start a new route to add another.`;for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).setAttribute('aria-pressed',String(wireMode===mode));}
 function drawWireRoutes(root){const rr=[...wireRoutes,...(wireDraft.length?[wireDraft]:[])];for(const [i,route] of rr.entries()){if(route.length>1)svg('path',{d:dpath(route),fill:'none',stroke:'#6af5d2','stroke-width':3/scene.scale,'stroke-dasharray':`${11/scene.scale} ${7/scene.scale}`,'data-wire':i},root);for(const [k,p] of route.entries()){svg('circle',{cx:p.x,cy:p.y,r:7/scene.scale,fill:k===0?'#ffd27d':'#6af5d2',stroke:'#132b2a','stroke-width':2/scene.scale},root);}}}
 function rearRacewayProfile(width,wall,depth){const outer=width+wall*2;return [[-outer/2,0],[-width/2,0],[-width/2,depth-wall],[width/2,depth-wall],[width/2,0],[outer/2,0],[outer/2,depth],[-outer/2,depth]];}
-function view(){labels();const g=$('content');g.replaceChildren();const r=range(),o=opts(),margin=35,fit=Math.min(820/Math.max(80,r.w+o.outer+margin),475/Math.max(80,r.h+o.outer+margin)),scale=fit*zoom,tx=450-(r.minX+r.w/2)*scale,ty=280-(r.minY+r.h/2)*scale;scene={tx,ty,scale};const root=svg('g',{transform:`translate(${tx} ${ty}) scale(${scale})`},g);const color='#eddaff';for(const [i,path] of allPaths().entries()){const d=dpath(smooth(path));svg('path',{d,stroke:'#82769b','stroke-width':o.outer+2,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:'#181726','stroke-width':o.inner,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.8),fill:'none',opacity:(+$('glow').value/100)*.7,filter:'url(#glowfilter)','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.65),fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);}
+function view(){labels();const g=$('content');g.replaceChildren();const r=range(),o=opts(),margin=35,fit=Math.min(820/Math.max(80,r.w+o.outer+margin),475/Math.max(80,r.h+o.outer+margin)),scale=fit*zoom,tx=450-(r.minX+r.w/2)*scale,ty=280-(r.minY+r.h/2)*scale;scene={tx,ty,scale};const root=svg('g',{transform:`translate(${tx} ${ty}) scale(${scale})`},g);const color='#eddaff';for(const [i,path] of allPaths().entries()){const d=dpath(path);svg('path',{d,stroke:'#82769b','stroke-width':o.outer+2,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:'#181726','stroke-width':o.inner,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.8),fill:'none',opacity:(+$('glow').value/100)*.7,filter:'url(#glowfilter)','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.65),fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);}
 if(fontPreviewOnly && uploadedFont && $('font').value==='custom'){const text=sourceText();const maxwidth=Math.max(1,+$('width').value);const c=document.createElement('canvas').getContext('2d');c.font='100px LEDSignUploaded';const em=Math.max(1,c.measureText(text).width);const fontSize=100*maxwidth/em;svg('text',{x:r.minX+15,y:r.minY+fontSize,'font-family':'LEDSignUploaded','font-size':fontSize,fill:'#eadaff',stroke:'#ab88df','stroke-width':Math.max(.5,fontSize*.02)},root).textContent=text;}
 drawWireRoutes(root);shapes.forEach((s,i)=>{const x=s.x+s.w/2,y=s.y+s.h/2;if(selected===i){svg('rect',{x:s.x-s.w/2,y:s.y-s.h/2,width:s.w,height:s.h,stroke:'#84ffe1','stroke-width':1.3/scale*6,fill:'none','stroke-dasharray':`${5/scale*6} ${3/scale*6}`},root);svg('circle',{cx:x,cy:y,r:7/scale,fill:'#84ffe1','data-resize':i},root);}const p=svg('path',{d:dpath(shapePaths()[i]),fill:'none',stroke:'transparent','stroke-width':Math.max(18/scale,o.outer),'data-shape':i,'stroke-linecap':'round'},root);p.style.cursor='move';});const totalW=r.w+o.outer,totalH=r.h+o.outer; $('dimensions').textContent=`${totalW.toFixed(1)} × ${totalH.toFixed(1)} mm | ${(totalW/25.4).toFixed(2)} × ${(totalH/25.4).toFixed(2)} in`; $('pathcount').textContent=allPaths().length;const bx=+$('bedW').value,by=+$('bedH').value;$('bedstate').textContent=r.w+o.outer<=bx&&r.h+o.outer<=by?'Fits':'Oversized';}
 function buildLines(){try{if($('font').value==='custom'){if(!uploadedFont){fontPreviewOnly=false;throw Error('Upload a TTF or OTF font first.');}fontPreviewOnly=true;view();const traced=pathsFromUploadedFont();lines=normalizePaths(traced);fontPreviewOnly=false;}else{fontPreviewOnly=false;lines=normalizePaths(draftPaths());}invalidate();status('Lettering paths updated. Ready for STL generation. '+(traceMessage||''), Boolean(traceMessage&&traceMessage.startsWith('Outline')));}catch(e){if($('font').value==='custom'&&uploadedFont){fontPreviewOnly=true;traceMessage=e.message;view();status('Font preview works, but printable tracing failed: '+e.message,true);}else status(e.message,true);}}
