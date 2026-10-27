@@ -1,0 +1,6 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');const code=fs.readFileSync(__dirname+'/app.js','utf8').replace(/wire\(\);buildLines\(\);\s*$/,'');const ctx={console,TextEncoder,Blob,setTimeout,document:{getElementById(){return {value:100}},createElementNS(){return {};}},window:{addEventListener(){}},FontFace:function(){}};vm.createContext(ctx);vm.runInContext(code,ctx);
+function test(name,source){try{vm.runInContext(source,ctx);console.log('PASS',name);}catch(e){console.log('FAIL',name,e.message);process.exitCode=1;}}
+test('channel sweep and binary STL',`var t=swept([{x:0,y:0},{x:90,y:0}],channelProfile({outer:14,inner:9,floor:2.5,height:18})); if(t.length<16)throw Error('missing surfaces');var b=stlBinary(t);if(b.length!==84+50*t.length)throw Error('STL length')`);
+test('curved stroke channel',`var s=swept([{x:0,y:0},{x:40,y:30},{x:80,y:0}],channelProfile({outer:14,inner:9,floor:2.5,height:18}));if(s.length<100)throw Error('too few triangles')`);
+test('solid contour support sweep',`var s=swept([{x:0,y:0},{x:40,y:30}],solidProfile(18,4));if(s.length<12)throw Error('too few triangles')`);
+test('zip packaging',`var z=zip([['test.stl',stlBinary(t)],['README.txt','hello']]); if(z.size<100)throw Error('empty ZIP')`);
