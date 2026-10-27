@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="Create and export 3D printable text signs in your browser.">
+  <title>LEDSign — 3D Sign Studio</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="LEDSign home"><span class="brand-icon">✳</span><span>LED<span class="brand-accent">Sign</span></span></a>
+    <span class="top-tag">3D SIGN STUDIO <span class="tag-dot">●</span> BROWSER BASED</span>
+  </header>
+  <main class="shell">
+    <section class="intro"><p class="eyebrow">CREATE • PREVIEW • PRINT</p><h1>Turn your words into <em>something real.</em></h1><p>Design a printable 3D text sign, inspect it from every angle, and export your model—right in your browser.</p></section>
+    <div class="layout">
+      <section class="panel editor" aria-labelledby="editorTitle">
+        <div class="panel-title"><span class="section-number">01</span><h2 id="editorTitle">Build your sign</h2></div>
+        <div class="field"><label for="signText">Your text <span class="muted">(up to 24 characters)</span></label><input id="signText" type="text" maxlength="24" value="HELLO" autocomplete="off" spellcheck="false"><small>Single-line text. A backing plate joins otherwise separate letters.</small></div>
+        <div class="field"><label for="fontStyle">Lettering style</label><select id="fontStyle"><option value="sans">Bold sans serif</option><option value="serif">Bold serif</option><option value="mono">Monospaced</option><option value="rounded">Rounded</option><option value="custom">Uploaded font</option></select><div class="upload-row"><label for="fontFile" class="upload-label">Upload a font</label><input id="fontFile" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"><span id="fontFilename" class="muted">Optional · TTF / OTF / WOFF</span></div></div>
+        <div class="separator"></div>
+        <div class="field"><div class="label-row"><label for="width">Overall text width</label><output id="widthOut" for="width">180 mm</output></div><input id="width" type="range" min="60" max="320" value="180" step="5"><div class="range-ends"><span>60 mm</span><span>320 mm</span></div></div>
+        <div class="field"><div class="label-row"><label for="depth">Raised letter height</label><output id="depthOut" for="depth">8 mm</output></div><input id="depth" type="range" min="2" max="25" value="8" step="1"><div class="range-ends"><span>2 mm</span><span>25 mm</span></div></div>
+        <div class="toggle-row"><div><label for="backing">Add connecting backing plate</label><small>Recommended for a single connected sign</small></div><input id="backing" type="checkbox" checked></div>
+        <div id="backingFields" class="backing-fields"><div class="field"><div class="label-row"><label for="padding">Plate padding</label><output id="paddingOut" for="padding">6 mm</output></div><input id="padding" type="range" min="2" max="15" value="6" step="1"></div><div class="field"><div class="label-row"><label for="plateDepth">Plate thickness</label><output id="plateDepthOut" for="plateDepth">3 mm</output></div><input id="plateDepth" type="range" min="1" max="8" value="3" step="1"></div></div>
+        <div class="separator"></div>
+        <div class="field"><label for="ledType">LED strip reference <span class="muted">(informational only)</span></label><select id="ledType"><option value="none">No LED selection</option><option value="ws2812b">WS2812B · 5 V</option><option value="ws2813">WS2813 · 5 V</option><option value="sk6812">SK6812 · 5 V</option><option value="ws2815">WS2815 · 12 V</option></select><small id="ledInfo">This version creates text and backing geometry, not LED channels or wiring holes.</small></div>
+        <button id="generate" class="button primary" type="button">✳ &nbsp; Generate 3D sign</button>
+        <div class="export-title">EXPORT YOUR MODEL</div><div class="button-pair"><button id="exportStl" class="button secondary" type="button" disabled>↓ &nbsp; Download STL</button><button id="exportObj" class="button secondary" type="button" disabled>↓ &nbsp; Download OBJ</button></div>
+        <p class="note">Geometry uses a pixel-based outline, which creates a slightly stepped edge. Inspect all files in your slicer before printing.</p>
+      </section>
+      <section class="panel preview-panel" aria-labelledby="previewTitle"><div class="preview-heading"><div><span class="section-number">02</span><h2 id="previewTitle">3D preview</h2></div><button id="resetView" class="text-button" type="button">↺ Reset view</button></div><div class="canvas-wrap" id="canvasWrap"><canvas id="viewport" aria-label="3D model preview. Drag to rotate; scroll to zoom."></canvas><div class="canvas-instruction">DRAG TO ROTATE <span>·</span> SCROLL TO ZOOM</div></div><div class="metrics"><div><span>WIDTH</span><strong id="metricWidth">—</strong></div><div><span>HEIGHT</span><strong id="metricHeight">—</strong></div><div><span>TOTAL DEPTH</span><strong id="metricDepth">—</strong></div><div><span>TRIANGLES</span><strong id="metricFaces">—</strong></div></div><div id="status" class="status" role="status" aria-live="polite">Ready. Click “Generate 3D sign” to begin.</div></section>
+    </div>
+    <footer><span>LEDSign Studio</span><span>All model generation happens locally in your browser · No uploads · No account required</span></footer>
+  </main>
+</body>
+</html>

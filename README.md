@@ -1,38 +1,54 @@
-# LEDSign — 3D Printed Sign Designer
+# LEDSign — 3D Sign Studio
 
-A browser-based 3D text sign designer with an interactive Three.js preview and STL/OBJ downloads.
+A **fully static**, browser-based text-to-3D sign generator. No npm, backend, API keys, CDN, or JavaScript dependencies are required.
 
-## Running locally
+## Deployment to GitHub Pages
 
-Serve the project folder with a local HTTP server (ES modules will not reliably load via `file://`):
+1. Extract `LEDSign.zip` and upload **the contents** of the `LEDSign` folder to the root of the `main` branch (do not upload the ZIP itself).
+2. Your repo should show `index.html`, `style.css`, `src/`, `.github/`, `tests/`, and `README.md` at its top level.
+3. In GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a branch**. Select **main** and **/(root)**, then Save.
+4. Visit `https://printedcrafts.github.io/LEDSign/` once Pages deployment completes. Browser cache may need a hard refresh following updates.
 
-```bash
-python -m http.server 8000
-```
-
-Open http://localhost:8000 . Internet access is required to load Three.js from jsDelivr. The project can also be hosted as static files on GitHub Pages.
+The site works on **GitHub Pages** and any basic static HTTP server. For local use, from the project directory run `python3 -m http.server 8000`, then open `http://localhost:8000`.
 
 ## Features
 
-- Sign text and four font presets; optional upload of a local TTF, OTF, WOFF or WOFF2 font.
-- Adjustable target text width (mm) and letter depth (mm).
-- LED strip model selector with model-specific guidance.
-- Orbit/zoom interactive 3D preview.
-- Binary STL or OBJ export.
+- Enter up to 24 characters of single-line text.
+- Choose built-in system fonts or upload TTF/OTF/WOFF fonts (font stays on your device).
+- Set text width, raised-letter height, optional base plate padding and thickness.
+- Browser-generated mesh and an interactive 3D preview (drag to rotate, scroll to zoom).
+- Download binary **STL** or text **OBJ** with dimensions in millimeters.
+- LED strip reference dropdown (voltage guidance only).
+- Responsive layout, no external services or telemetry.
 
-## Important limitations
+## Manufacturing limitations (important)
 
-The generator creates a block-style raster extrusion of text using rectangular segments. Export meshes contain overlapping coplanar surfaces and are **not guaranteed watertight/manifold**; run a mesh union/repair in a slicer or CAD application before printing. This is not yet a production-grade LED housing generator: it does not create LED strip channels, diffusion covers, wire routing, or mounting features. Strip selection currently updates design guidance/metadata but does not change model geometry. Local fonts depend on browser support. The application requires WebGL and a working CDN connection.
+This app converts the text to a **rasterized pixel outline** and builds a boundary surface around occupied cells. Curves therefore have slightly stepped edges. For standalone letters (backing plate disabled), multiple disconnected objects can result. With a plate, the letters intersect and form a connected surface, although some letter pixels may be separated in very small/complex typefaces. Inspect the result using your slicer's mesh checking tools before print production.
 
-## Repository layout
+The LED selection is **informational only**. The generated models **do not** contain LED tape channels, diffusers, electrical connections, wiring bores, mounting holes, or power calculations. The generated files are basic 3D text signs, not ready-made electrically engineered LED fixtures.
+
+Fonts depend on those installed in your browser's operating system; uploading a font produces more predictable styling. No font files are included.
+
+## Project structure
 
 ```
-index.html
-style.css
-src/app.js
-README.md
+index.html              User interface
+style.css               Responsive styles
+src/app.js              Browser interaction, text raster, 3D preview
+src/geometry.js         Surface mesh generation + STL/OBJ exporters
+tests/geometry.test.mjs Node.js built-in test runner (optional)
+.github/workflows/ci.yml Basic automated tests
+README.md               Instructions
 ```
 
-## Deployment
+## Tests
 
-Push these files to the root of the `main` branch. Enable GitHub Pages from `main` / root in repository Settings → Pages.
+Optional development test (Node.js 20+):
+
+```bash
+node --test tests/geometry.test.mjs
+node --check src/app.js
+node --check src/geometry.js
+```
+
+No package installation is needed. For best results use a current Chrome, Edge, Firefox, or Safari browser.
