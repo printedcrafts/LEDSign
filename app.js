@@ -2,6 +2,7 @@
 const $=id=>document.getElementById(id), NS='http://www.w3.org/2000/svg';
 const PROFILES={neon6:{w:6,h:12,bend:30},neon8:{w:8,h:16,bend:40},neon10:{w:10,h:20,bend:50},cob8:{w:8,h:3,bend:12}};
 let uploadedFont=null;let lines=[],shapes=[],selected=-1,customFont=null,uploadBusy=false,zoom=1,scene=null,downloadBlob=null;let fontPreviewOnly=false,traceMessage='';
+let wireRoutes=[],wireDraft=[],wireMode='',selectedWireRoute=-1;
 function sourceText(){return $('text').value.slice(0,28)||'Neon';}
 function status(t,bad=false){$('notice').textContent=t;$('notice').className=bad?'messages error':'messages';}
 function createGrid(w,h,fill=0){return {w,h,data:new Uint8Array(w*h).fill(fill)};}
@@ -44,13 +45,54 @@ const caps={A:'M5 81 Q26 22 45 6 Q56 35 66 81 M16 54 Q41 49 62 53',B:'M12 10 L11
 function draftPaths(){const text=sourceText(), paths=[];let x=0;for(const letter of text){const raw=/\s/.test(letter)?'':(caps[letter]??glyph[letter.toLowerCase()]??glyph.o);if(!raw){x+=47;continue;}const sections=raw.match(/M[^M]+/g)||[];for(const section of sections){const svg=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('d',section);try{const len=svg.getTotalLength(),pts=[];for(let d=0;d<=len;d+=Math.max(7,len/16)){const pt=svg.getPointAtLength(Math.min(d,len));pts.push({x:pt.x+x,y:pt.y});}const end=svg.getPointAtLength(len);pts.push({x:end.x+x,y:end.y});if(pts.length>=2)paths.push(pts);}catch(err){console.error('Invalid letter vector',letter,err);}}x+=letter==='m'||letter==='w'?106:letter==='i'||letter==='l'?42:78;}if(!paths.length)throw Error('No usable characters.');return paths;}
 function normalizePaths(paths){const points=paths.flat();const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));const spanX=Math.max(1,maxX-minX),scale=+$('width').value/spanX;const desiredMargin=15;return paths.map(path=>path.map(pt=>({x:(pt.x-minX)*scale+desiredMargin,y:(pt.y-minY)*scale+desiredMargin})));}
 
+// Signature-font conversion: first try centerlines, then bounded contours.
+// The fallback is deliberately explicit: a glyph outline is NOT an LED centerline.
+function contourFallback(mask){
+  const {w,h,data}=mask, visited=new Uint8Array(w*h), paths=[];
+  const solid=(x,y)=>x>=0&&x<w&&y>=0&&y<h&&data[y*w+x];
+  // Build directed perimeter edges for all filled pixels. Interior edges cancel.
+  const edges=new Map();
+  const add=(a,b)=>{let k=a.join(',');if(!edges.has(k))edges.set(k,[]);edges.get(k).push(b);};
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(solid(x,y)){
+    if(!solid(x,y-1))add([x,y],[x+1,y]);
+    if(!solid(x+1,y))add([x+1,y],[x+1,y+1]);
+    if(!solid(x,y+1))add([x+1,y+1],[x,y+1]);
+    if(!solid(x-1,y))add([x,y+1],[x,y]);
+  }
+  const pop=k=>{const q=edges.get(k);if(!q||!q.length)return null;const v=q.pop();if(!q.length)edges.delete(k);return v;};
+  let guard=0;
+  while(edges.size&&guard++<w*h*4){
+    const startKey=edges.keys().next().value;
+    let current=startKey.split(',').map(Number), start=current.join(','),path=[{x:current[0],y:current[1]}];
+    for(let n=0;n<w*h*4;n++){
+      const next=pop(current.join(','));if(!next)break;
+      current=next;path.push({x:current[0],y:current[1]});
+      if(current.join(',')===start)break;
+    }
+    // Ignore speckle, keep connected visible glyph contours.
+    if(path.length>=12){
+      const simplified=[];
+      for(let i=0;i<path.length-1;i++){
+        const prev=path[(i-1+path.length-1)%(path.length-1)],now=path[i],next=path[(i+1)%(path.length-1)];
+        const cross=(now.x-prev.x)*(next.y-now.y)-(now.y-prev.y)*(next.x-now.x);
+        if(Math.abs(cross)>0.01)simplified.push(now);
+      }
+      if(simplified.length>=3){
+        // Sample large contours; retain closed loops.
+        const stride=Math.max(1,Math.ceil(simplified.length/240));
+        const pts=simplified.filter((_,i)=>i%stride===0);
+        if(pts.length>=3){pts.push({...pts[0]});paths.push(pts);}
+      }
+    }
+  }
+  return paths.sort((a,b)=>b.length-a.length).slice(0,90);
+}
 function pathsFromUploadedFont(){
   const text=sourceText();
   const canvas=document.createElement('canvas');
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   if(!ctx)throw Error('Canvas 2D unavailable in this browser.');
-  const family='LEDSignUploaded';
-  const px=100;
+  const family='LEDSignUploaded',px=100;
   ctx.font=`${px}px "${family}"`;
   const measure=ctx.measureText(text);
   const scale=Math.min(1,300/Math.max(1,measure.width+24));
@@ -62,25 +104,28 @@ function pathsFromUploadedFont(){
   ctx.fillText(text,12,118*scale+8);
   const rgba=ctx.getImageData(0,0,w,h).data;
   const mask=createGrid(w,h);
-  for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>115?1:0;
+  for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>90?1:0;
   const ink=count(mask);
-  if(ink<10)throw Error('The uploaded font produced no visible pixels. Check the text and font file.');
-  const sk=skeletonize(mask);
-  const paths=traceSkeleton(sk);
-  if(!paths.length)throw Error('Font rendered but no continuous centerline paths were extracted.');
-  return paths;
+  if(ink<10)throw Error('Uploaded font did not render pixels.');
+  let traced=[];
+  try{traced=traceSkeleton(skeletonize(mask));}catch(e){console.warn('Centerline tracer:',e.message);}
+  // Highly branched handwritten fonts can produce unusable short fragments.
+  const significant=traced.filter(p=>p.length>=4);
+  if(significant.length>=1 && significant.length<180){traceMessage='Centerlines extracted.';return significant;}
+  const fallback=contourFallback(mask);
+  if(!fallback.length)throw Error('Could not extract centerlines or font contours.');
+  traceMessage='Outline fallback: generated channels follow the glyph boundaries, not the ideal neon stroke. Review before printing.';
+  return fallback;
 }
 function traceSkeleton(g){
-  const {w,h}=g, mark=g.data;
+  const {w,h}=g,mark=g.data;
   const offsets=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
   function around(i){const x=i%w,y=Math.floor(i/w),out=[];for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&mark[yy*w+xx])out.push(yy*w+xx);}return out;}
   const nbr=new Map();for(let i=0;i<mark.length;i++)if(mark[i])nbr.set(i,around(i));
-  const used=new Set(),paths=[];const key=(a,b)=>a<b?a+':'+b:b+':'+a;
-  const pos=i=>({x:i%w,y:Math.floor(i/w)});
+  const used=new Set(),paths=[],key=(a,b)=>a<b?a+':'+b:b+':'+a,pos=i=>({x:i%w,y:Math.floor(i/w)});
   function walk(a,b){let previous=a,current=b,pts=[pos(a),pos(b)];used.add(key(a,b));let steps=0;while(steps++<mark.length){const n=(nbr.get(current)||[]).filter(k=>k!==previous&&!used.has(key(current,k)));if(n.length!==1)break;const next=n[0];used.add(key(current,next));pts.push(pos(next));previous=current;current=next;if(current===a)break;}if(pts.length>1){const sampled=pts.filter((_,i)=>i===0||i===pts.length-1||i%3===0);paths.push(sampled);}}
   for(const [i,n] of nbr)if(n.length!==2)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
   for(const [i,n] of nbr)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
-  if(!paths.length)throw Error('Font has no traceable strokes. Choose another font.');
   return paths.filter(p=>p.length>=2).slice(0,280);
 }
 async function uploadFont(file){
@@ -113,10 +158,16 @@ function opts(){const p=PROFILES[$('led').value],clearance=+$('clearance').value
 function labels(){for(const id of ['width','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id+'O').textContent=$(id).value+(id==='glow'?'%':' mm');const o=opts();$('profile').textContent=`Opening ${o.inner.toFixed(1)} mm · outside ${o.outer.toFixed(1)} mm · nominal LED ${o.p.w}×${o.p.h} mm · manufacturer minimum bend radius must be checked (example ${o.p.bend} mm).`;}
 function svg(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.append(e);return e;}
 function dpath(pts){return 'M'+pts.map(p=>`${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L');}
+function wirePointToSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));return {x:a.x+t*dx,y:a.y+t*dy};}
+function nearestLedPoint(p){let best=null,dist=Infinity;for(const path of allPaths())for(let i=1;i<path.length;i++){const q=wirePointToSegment(p,path[i-1],path[i]),d=Math.hypot(q.x-p.x,q.y-p.y);if(d<dist){dist=d;best=q;}}return best;}
+function addWirePoint(p){if(wireMode==='start'){wireDraft=[nearestLedPoint(p)];wireMode='end';}else if(wireMode==='waypoint'){if(!wireDraft.length){status('Mark a start point first.',true);return;}wireDraft.push(p);wireMode='end';}else if(wireMode==='end'){if(!wireDraft.length){wireMode='start';return;}const endpoint=nearestLedPoint(p);if(Math.hypot(endpoint.x-wireDraft[0].x,endpoint.y-wireDraft[0].y)<1)throw Error('Wire route is too short');wireRoutes.push([...wireDraft,endpoint]);wireDraft=[];wireMode='';selectedWireRoute=wireRoutes.length-1;}updateWireUI();invalidate();}
+function updateWireUI(){const el=$('routeStatus');if(!el)return;el.textContent=wireMode==='start'?'Click near the END of the first LED stroke.':wireMode==='end'?'Click near the START of the next LED stroke, or add a waypoint.':wireMode==='waypoint'?'Click anywhere to place a rear-wire waypoint.':`${wireRoutes.length} completed rear cable route(s). Start a new route to add another.`;for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).setAttribute('aria-pressed',String(wireMode===mode));}
+function drawWireRoutes(root){const rr=[...wireRoutes,...(wireDraft.length?[wireDraft]:[])];for(const [i,route] of rr.entries()){if(route.length>1)svg('path',{d:dpath(route),fill:'none',stroke:'#6af5d2','stroke-width':3/scene.scale,'stroke-dasharray':`${11/scene.scale} ${7/scene.scale}`,'data-wire':i},root);for(const [k,p] of route.entries()){svg('circle',{cx:p.x,cy:p.y,r:7/scene.scale,fill:k===0?'#ffd27d':'#6af5d2',stroke:'#132b2a','stroke-width':2/scene.scale},root);}}}
+function rearRacewayProfile(width,wall,depth){const outer=width+wall*2;return [[-outer/2,0],[-width/2,0],[-width/2,depth-wall],[width/2,depth-wall],[width/2,0],[outer/2,0],[outer/2,depth],[-outer/2,depth]];}
 function view(){labels();const g=$('content');g.replaceChildren();const r=range(),o=opts(),margin=35,fit=Math.min(820/Math.max(80,r.w+o.outer+margin),475/Math.max(80,r.h+o.outer+margin)),scale=fit*zoom,tx=450-(r.minX+r.w/2)*scale,ty=280-(r.minY+r.h/2)*scale;scene={tx,ty,scale};const root=svg('g',{transform:`translate(${tx} ${ty}) scale(${scale})`},g);const color='#eddaff';for(const [i,path] of allPaths().entries()){const d=dpath(smooth(path));svg('path',{d,stroke:'#82769b','stroke-width':o.outer+2,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:'#181726','stroke-width':o.inner,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.8),fill:'none',opacity:(+$('glow').value/100)*.7,filter:'url(#glowfilter)','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.65),fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);}
 if(fontPreviewOnly && uploadedFont && $('font').value==='custom'){const text=sourceText();const maxwidth=Math.max(1,+$('width').value);const c=document.createElement('canvas').getContext('2d');c.font='100px LEDSignUploaded';const em=Math.max(1,c.measureText(text).width);const fontSize=100*maxwidth/em;svg('text',{x:r.minX+15,y:r.minY+fontSize,'font-family':'LEDSignUploaded','font-size':fontSize,fill:'#eadaff',stroke:'#ab88df','stroke-width':Math.max(.5,fontSize*.02)},root).textContent=text;}
-shapes.forEach((s,i)=>{const x=s.x+s.w/2,y=s.y+s.h/2;if(selected===i){svg('rect',{x:s.x-s.w/2,y:s.y-s.h/2,width:s.w,height:s.h,stroke:'#84ffe1','stroke-width':1.3/scale*6,fill:'none','stroke-dasharray':`${5/scale*6} ${3/scale*6}`},root);svg('circle',{cx:x,cy:y,r:7/scale,fill:'#84ffe1','data-resize':i},root);}const p=svg('path',{d:dpath(shapePaths()[i]),fill:'none',stroke:'transparent','stroke-width':Math.max(18/scale,o.outer),'data-shape':i,'stroke-linecap':'round'},root);p.style.cursor='move';});const totalW=r.w+o.outer,totalH=r.h+o.outer; $('dimensions').textContent=`${totalW.toFixed(1)} × ${totalH.toFixed(1)} mm | ${(totalW/25.4).toFixed(2)} × ${(totalH/25.4).toFixed(2)} in`; $('pathcount').textContent=allPaths().length;const bx=+$('bedW').value,by=+$('bedH').value;$('bedstate').textContent=r.w+o.outer<=bx&&r.h+o.outer<=by?'Fits':'Oversized';}
-function buildLines(){try{if($('font').value==='custom'){if(!uploadedFont){fontPreviewOnly=false;throw Error('Upload a TTF or OTF font first.');}fontPreviewOnly=true;view();const traced=pathsFromUploadedFont();lines=normalizePaths(traced);fontPreviewOnly=false;traceMessage='';}else{fontPreviewOnly=false;lines=normalizePaths(draftPaths());}invalidate();status('Lettering paths updated. Ready for STL generation.');}catch(e){if($('font').value==='custom'&&uploadedFont){fontPreviewOnly=true;traceMessage=e.message;view();status('Font preview works, but printable tracing failed: '+e.message,true);}else status(e.message,true);}}
+drawWireRoutes(root);shapes.forEach((s,i)=>{const x=s.x+s.w/2,y=s.y+s.h/2;if(selected===i){svg('rect',{x:s.x-s.w/2,y:s.y-s.h/2,width:s.w,height:s.h,stroke:'#84ffe1','stroke-width':1.3/scale*6,fill:'none','stroke-dasharray':`${5/scale*6} ${3/scale*6}`},root);svg('circle',{cx:x,cy:y,r:7/scale,fill:'#84ffe1','data-resize':i},root);}const p=svg('path',{d:dpath(shapePaths()[i]),fill:'none',stroke:'transparent','stroke-width':Math.max(18/scale,o.outer),'data-shape':i,'stroke-linecap':'round'},root);p.style.cursor='move';});const totalW=r.w+o.outer,totalH=r.h+o.outer; $('dimensions').textContent=`${totalW.toFixed(1)} × ${totalH.toFixed(1)} mm | ${(totalW/25.4).toFixed(2)} × ${(totalH/25.4).toFixed(2)} in`; $('pathcount').textContent=allPaths().length;const bx=+$('bedW').value,by=+$('bedH').value;$('bedstate').textContent=r.w+o.outer<=bx&&r.h+o.outer<=by?'Fits':'Oversized';}
+function buildLines(){try{if($('font').value==='custom'){if(!uploadedFont){fontPreviewOnly=false;throw Error('Upload a TTF or OTF font first.');}fontPreviewOnly=true;view();const traced=pathsFromUploadedFont();lines=normalizePaths(traced);fontPreviewOnly=false;}else{fontPreviewOnly=false;lines=normalizePaths(draftPaths());}invalidate();status('Lettering paths updated. Ready for STL generation. '+(traceMessage||''), Boolean(traceMessage&&traceMessage.startsWith('Outline')));}catch(e){if($('font').value==='custom'&&uploadedFont){fontPreviewOnly=true;traceMessage=e.message;view();status('Font preview works, but printable tracing failed: '+e.message,true);}else status(e.message,true);}}
 function invalidate(){downloadBlob=null;$('download').disabled=true;view();}
 function orient(a,b){return a[0]*b[1]-a[1]*b[0];}
 function capTriangles(poly){const ids=poly.map((_,i)=>i),tri=[];let area=0;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];area+=orient(a,b);}const sign=Math.sign(area)||1;for(let loop=0;ids.length>3&&loop<100;loop++){let found=false;for(let i=0;i<ids.length;i++){const A=ids[(i+ids.length-1)%ids.length],B=ids[i],C=ids[(i+1)%ids.length],a=poly[A],b=poly[B],c=poly[C];if(orient([b[0]-a[0],b[1]-a[1]],[c[0]-b[0],c[1]-b[1]])*sign<1e-8)continue;let inside=false;for(const j of ids){if([A,B,C].includes(j))continue;const p=poly[j];const f=(u,v,w)=>orient([v[0]-u[0],v[1]-u[1]],[w[0]-u[0],w[1]-u[1]])*sign; if(f(a,b,p)>0&&f(b,c,p)>0&&f(c,a,p)>0){inside=true;break;}}if(inside)continue;tri.push([A,B,C]);ids.splice(i,1);found=true;break;}if(!found)throw Error('Could not triangulate end cap.');}if(ids.length===3)tri.push([...ids]);return tri;}
@@ -186,7 +237,11 @@ async function generate(){if(fontPreviewOnly){status('Cannot generate STL: '+(tr
    if($('backing').checked)files.push([`supports/${name}.stl`,stlBinary(swept(path,solidProfile(o.outer+2*o.pad,o.backingHeight)))]);
    if(i%3===0){status(`Generating ${i+1} / ${pieces.length} printable sections…`);await nextFrame();}
   }
-  const note=`LEDSign STL parts; units millimeters.\nBuild plate ${bx} x ${by} mm; ${split.cols} columns x ${split.rows} rows.\nEach file is a separate path piece positioned within its print tile.\nSegments have flat unjoined ends: NO snap locks or dovetails. Use a mounting panel or a separately designed positive locking mechanism.\nDo not print until slicer checks verify bounding dimensions, manifold geometry, intersections, and LED fit.\nOutput channels are U-shaped, not manufacturer validated.\n`;
+  const wireWidth=+$('wireWidth').value,wireWall=+$('wireWall').value,wireDepth=+$('wireDepth').value;
+  if(wireRoutes.length && (!Number.isFinite(wireWidth)||wireWidth<1||!Number.isFinite(wireWall)||wireWall<1||!Number.isFinite(wireDepth)||wireDepth<=wireWall))throw Error('Rear raceway dimensions are invalid. Depth must exceed wall thickness.');
+  if(wireDraft.length)throw Error('Finish or undo the unfinished rear wire route before exporting.');
+  if(wireRoutes.length){const wireSplit=splitForBed(wireRoutes,bx,by,(wireWidth+wireWall*2)/2+2);for(let i=0;i<wireSplit.pieces.length;i++){const part=wireSplit.pieces[i];files.push([`rear-wire-raceways/route-${String(i+1).padStart(3,'0')}-tile-${part.tileX}-${part.tileY}.stl`,stlBinary(swept(part.path,rearRacewayProfile(wireWidth,wireWall,wireDepth)))]);}}
+  const note=`LEDSign STL parts; units millimeters.\nBuild plate ${bx} x ${by} mm; ${split.cols} columns x ${split.rows} rows.\nEach file is a separate path piece positioned within its print tile.\nSegments have flat unjoined ends: NO snap locks or dovetails. Use a mounting panel or a separately designed positive locking mechanism.\nDo not print until slicer checks verify bounding dimensions, manifold geometry, intersections, and LED fit.\nOutput channels are U-shaped, not manufacturer validated.\nRear wire raceways are separate OPEN-BACK U-shaped pieces, NOT boolean-cut into the contour supports. Attach to the rear with suitable bonding/fasteners and verify safe wire bend radius, insulation, strain relief, heat, wire gauge and power supply capacity. Routes ending on LED strokes need drilled/formed feed-throughs that are NOT automatically modeled. Do not run bare or exposed conductors.\n`;
   files.push(['README-PRINTING.txt',note]);
   downloadBlob=zip(files);$('download').disabled=false;
   status(`Generated ${files.length-1} STL models; ${split.cols} x ${split.rows} build-bed tiles. Download and inspect in your slicer. No locking joints included.`);
@@ -208,6 +263,6 @@ function alignSelected(axis){
  if(axis==='middle')s.y=(minY+maxY)/2;
  invalidate();
 }
-function wire(){for(const id of ['text','width'])$(id).addEventListener('input',buildLines);for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',buildLines);$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
+function wire(){for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).onclick=()=>{if(mode==='waypoint'&&!wireDraft.length){status('Set route Start first.',true);return;}if(mode==='end'&&!wireDraft.length){status('Set route Start first.',true);return;}wireMode=mode;updateWireUI();};$('routeUndo').onclick=()=>{if(wireDraft.length)wireDraft.pop();else if(wireRoutes.length)wireDraft=wireRoutes.pop().slice(0,-1);wireMode=wireDraft.length?'end':'start';updateWireUI();invalidate();};$('routeDelete').onclick=()=>{if(wireRoutes.length)wireRoutes.splice(selectedWireRoute>=0?selectedWireRoute:wireRoutes.length-1,1);selectedWireRoute=-1;updateWireUI();invalidate();};$('routeClear').onclick=()=>{wireRoutes=[];wireDraft=[];wireMode='';selectedWireRoute=-1;updateWireUI();invalidate();};for(const id of ['wireWidth','wireWall','wireDepth'])$(id).addEventListener('input',invalidate);$('preview').addEventListener('click',e=>{if(!wireMode)return;try{addWirePoint(world(e));}catch(err){status(err.message,true);}});for(const id of ['text','width'])$(id).addEventListener('input',buildLines);for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',buildLines);$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
 window.addEventListener('error',e=>status(`Application error: ${e.message}`,true));
-wire();buildLines();
+wire();buildLines();updateWireUI();

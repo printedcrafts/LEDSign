@@ -1,11 +1,9 @@
-# LEDSign - Font Preview and Dimensions Patch
+# LEDSign rear wiring prototype
 
-Upload only `index.html`, `style.css`, and `app.js` to the root of your GitHub Pages repository. These three files must stay together.
+Deploy `index.html`, `style.css`, and `app.js` together in the root of the GitHub Pages `main` branch. This release retains the Brittany Signature tracing fallback.
 
-Changes:
-- Uploaded TTF/OTF fonts display immediately as SVG text before attempting approximate centerline tracing.
-- Font tracing is bounded to a smaller raster to avoid locking the browser on large glyphs. If tracing fails, the preview remains visible and STL export is blocked with a diagnostic (rather than exporting a different design).
-- Total sign dimensions display both metric (mm) and imperial (inches).
-- Generated ZIP contains only files necessary to deploy. No `test.cjs` is included.
+## Wiring
+Select **Start** and click the end of a visible LED path. Optionally select **Waypoint** and click one or more locations for the hidden rear wiring; select **End** and click the beginning of the next path. Green dashed lines mark the rear wiring route. The ZIP export includes separate rear-wire-raceway STL pieces, split to fit your configured printer bed.
 
-Limitations: Font-to-neon centerline tracing is an approximation, not a verified vector font-to-CAD pipeline. Check every STL for manufacturing suitability. SVG preview success does NOT guarantee printable channel generation.
+## Safety and manufacturing limitations
+The rear wiring conduits are *separate printed open-back raceways*, not grooves cut into a unified rear sign plate. The exporter does **not** automatically add the wire feed-through holes at the endpoints, join the raceways to the backing, electrically connect strips, or validate strain relief, voltage/current, bend radius, fire safety, or IP protection. Don't print or wire until those are reviewed. It does not include positive-locking dovetails. Inspect every STL with a slicer.
