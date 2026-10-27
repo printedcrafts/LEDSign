@@ -1,6 +1,14 @@
-import {PROFILES,defaults,createGrid,generateMeshes,gridSvgPath,stl,count} from './geometry.js';
-const $=id=>document.getElementById(id);
-const E=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+"use strict";
+const $=id=>document.getElementById(id), NS='http://www.w3.org/2000/svg';
+const PROFILES={neon6:{w:6,h:12,bend:30},neon8:{w:8,h:16,bend:40},neon10:{w:10,h:20,bend:50},cob8:{w:8,h:3,bend:12}};
+let uploadedFont=null;let lines=[],shapes=[],selected=-1,customFont=null,uploadBusy=false,zoom=1,scene=null,downloadBlob=null;
+function sourceText(){return $('text').value.slice(0,28)||'Neon';}
+function status(t,bad=false){$('notice').textContent=t;$('notice').className=bad?'messages error':'messages';}
+function createGrid(w,h,fill=0){return {w,h,data:new Uint8Array(w*h).fill(fill)};}
+const idx=(g,x,y)=>y*g.w+x;
+function dilate(g,r){const out=createGrid(g.w,g.h), rad=Math.max(0,Math.ceil(r)), offsets=[];for(let y=-rad;y<=rad;y++)for(let x=-rad;x<=rad;x++)if(x*x+y*y<=r*r+.25)offsets.push([x,y]);for(let y=0;y<g.h;y++)for(let x=0;x<g.w;x++)if(g.data[idx(g,x,y)])for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<g.w&&yy<g.h)out.data[idx(g,xx,yy)]=1;}return out;}
+function skeletonize(input){const g=createGrid(input.w,input.h);g.data.set(input.data);const {w,h}=g;let changed=true,iterations=0;while(changed&&iterations++<150){changed=false;for(let phase=0;phase<2;phase++){const remove=[];for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;if(!g.data[i])continue;const n=[g.data[i-w],g.data[i-w+1],g.data[i+1],g.data[i+w+1],g.data[i+w],g.data[i+w-1],g.data[i-1],g.data[i-w-1]];const s=n.reduce((a,b)=>a+b,0);if(s<2||s>6)continue;let transitions=0;for(let k=0;k<8;k++)if(!n[k]&&n[(k+1)%8])transitions++;if(transitions!==1)continue;if(phase===0?(n[0]*n[2]*n[4]||n[2]*n[4]*n[6]):(n[0]*n[2]*n[6]||n[0]*n[4]*n[6]))continue;remove.push(i);}for(const i of remove)g.data[i]=0;if(remove.length)changed=true;}}return g;}
+
 const glyph={
  a:'M8 67 Q25 20 48 37 Q64 55 45 72 Q21 96 10 70 Q5 48 26 40 M49 37 Q43 79 66 66',
  b:'M8 4 Q8 50 8 75 Q10 86 18 74 M10 60 Q34 24 52 43 Q70 66 43 79 Q25 86 14 69',
@@ -31,28 +39,167 @@ const glyph={
  ' ':'', '-':'M6 61 L44 59', '.':'M16 77 L18 79', '!':'M18 9 L17 64 M17 77 L18 79', '?':'M7 25 Q18 2 40 14 Q61 30 35 49 Q19 61 21 64 M21 77 L22 79', '&':'M57 30 Q50 6 31 12 Q9 17 25 43 Q67 87 44 80 Q5 79 12 60 Q23 39 65 41'
 };
 const caps={A:'M5 81 Q26 22 45 6 Q56 35 66 81 M16 54 Q41 49 62 53',B:'M12 10 L11 81 Q68 90 69 61 Q68 46 15 46 Q70 52 63 25 Q59 5 12 10',C:'M64 25 Q46 0 24 17 Q-2 39 16 68 Q36 98 68 65',D:'M12 10 L12 80 Q75 92 76 44 Q75 3 12 10',E:'M62 11 L11 11 L12 80 L64 80 M12 46 L51 45',F:'M12 81 L12 11 L65 11 M12 46 L55 46',G:'M69 24 Q44 -2 22 18 Q0 41 18 69 Q36 94 70 67 L70 49 L45 49',H:'M12 10 L12 81 M65 10 L65 81 M12 46 L65 46',I:'M23 10 L23 81',J:'M49 10 L48 65 Q45 91 14 75',K:'M12 10 L12 81 M65 10 L12 55 M29 44 L68 81',L:'M12 10 L12 80 L65 80',M:'M8 81 L10 10 L40 53 L70 10 L73 81',N:'M12 81 L12 11 L68 81 L68 10',O:'M39 8 Q9 7 9 43 Q9 83 39 83 Q71 83 71 44 Q71 8 39 8',P:'M12 81 L12 10 Q65 4 65 33 Q65 55 12 52',Q:'M39 8 Q9 7 9 43 Q9 83 39 83 Q71 83 71 44 Q71 8 39 8 M49 69 L75 90',R:'M12 81 L12 10 Q65 4 65 33 Q65 54 12 52 M42 52 L70 81',S:'M64 20 Q39 0 19 17 Q4 33 37 46 Q77 63 55 76 Q31 89 9 68',T:'M6 12 L73 12 M39 12 L39 81',U:'M10 10 L10 59 Q10 86 38 83 Q66 81 66 57 L66 10',V:'M8 10 L39 81 L70 10',W:'M5 10 L20 81 L40 42 L60 81 L77 10',X:'M10 10 L70 81 M70 10 L10 81',Y:'M7 10 L38 46 L70 10 M38 46 L38 81',Z:'M10 10 L70 10 L10 81 L70 81'};
-let lines=[], result=null, editing=true, dragging=null, built=false;
-function sourceText(){return $('text').value.slice(0,32)||'Neon';}
-function draftPaths(){const text=sourceText(), paths=[];let x=0;for(const letter of text){const raw=caps[letter]||glyph[letter.toLowerCase()]||glyph.o;if(!raw){x+=47;continue;}const sections=raw.match(/M[^M]+/g)||[];for(const section of sections){const svg=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('d',section);try{const len=svg.getTotalLength(),pts=[];for(let d=0;d<=len;d+=Math.max(7,len/16)){const pt=svg.getPointAtLength(Math.min(d,len));pts.push({x:pt.x+x,y:pt.y});}const end=svg.getPointAtLength(len);pts.push({x:end.x+x,y:end.y});if(pts.length>=2)paths.push(pts);}catch(err){console.error('Invalid letter vector',letter,err);}}x+=letter==='m'||letter==='w'?106:letter==='i'||letter==='l'?42:78;}if(!paths.length)throw Error('No usable characters.');return paths;}
+
+function draftPaths(){const text=sourceText(), paths=[];let x=0;for(const letter of text){const raw=/\s/.test(letter)?'':(caps[letter]??glyph[letter.toLowerCase()]??glyph.o);if(!raw){x+=47;continue;}const sections=raw.match(/M[^M]+/g)||[];for(const section of sections){const svg=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('d',section);try{const len=svg.getTotalLength(),pts=[];for(let d=0;d<=len;d+=Math.max(7,len/16)){const pt=svg.getPointAtLength(Math.min(d,len));pts.push({x:pt.x+x,y:pt.y});}const end=svg.getPointAtLength(len);pts.push({x:end.x+x,y:end.y});if(pts.length>=2)paths.push(pts);}catch(err){console.error('Invalid letter vector',letter,err);}}x+=letter==='m'||letter==='w'?106:letter==='i'||letter==='l'?42:78;}if(!paths.length)throw Error('No usable characters.');return paths;}
 function normalizePaths(paths){const points=paths.flat();const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));const spanX=Math.max(1,maxX-minX),scale=+$('width').value/spanX;const desiredMargin=15;return paths.map(path=>path.map(pt=>({x:(pt.x-minX)*scale+desiredMargin,y:(pt.y-minY)*scale+desiredMargin})));}
-function makeLines(){lines=normalizePaths(draftPaths());result=null;built=false;setExport(false);draw();status('Vector paths ready. Drag the dots to customize, then Generate fabrication geometry.');}
-function size(){const pts=lines.flat(),maxX=Math.max(60,...pts.map(p=>p.x)),maxY=Math.max(60,...pts.map(p=>p.y));return {w:maxX+20,h:maxY+20};}
-function pathD(){return lines.map(line=>'M'+line.map(p=>`${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' L')).join(' ');}
-function options(){const p=PROFILES[$('led').value],clearance=+$('clearance').value,wall=+$('wall').value;return {cell:+$('resolution').value,inside:p.strip+2*clearance,outside:p.strip+2*clearance+2*wall,floor:+$('floor').value,channelHeight:+$('channelDepth').value,backingPadding:+$('padding').value,backingThickness:+$('plate').value,backing:$('backing').checked,profile:p,wall};}
-function draw(){if(!lines.length)return;const dims=size(),opt=options(),light=$('light').value,glow=+$('glow').value/100,d=pathD(),outer=opt.outside,inside=opt.inside;const r=result?.mesh;const platePath=r?.plate?gridSvgPath(r.plate,opt.cell):'';let html=`<svg id="vectorSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dims.w.toFixed(1)} ${dims.h.toFixed(1)}" role="img" aria-label="Editable glowing neon flex letter paths"><defs><filter id="halo" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="${2+4*glow}"/></filter></defs>`;
-if(platePath)html+=`<path d="${platePath}" fill="#55516a" stroke="#9c94bd" stroke-width="1" opacity=".85"/>`;
-html+=`<path d="${d}" fill="none" stroke="#7b7799" stroke-width="${outer+3}" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/><path d="${d}" fill="none" stroke="#302c43" stroke-width="${outer}" stroke-linejoin="round" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#111526" stroke-width="${inside}" stroke-linejoin="round" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${E(light)}" stroke-width="${opt.profile.strip+4}" stroke-linejoin="round" stroke-linecap="round" opacity="${glow*.85}" filter="url(#halo)"/><path d="${d}" fill="none" stroke="${E(light)}" stroke-width="${opt.profile.strip}" stroke-linejoin="round" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#ffffff" stroke-width="${Math.max(1,opt.profile.strip*.19)}" opacity=".9" stroke-linejoin="round" stroke-linecap="round"/>`;
-if(editing)for(let i=0;i<lines.length;i++)for(let j=0;j<lines[i].length;j++){const p=lines[i][j];html+=`<circle class="node" data-i="${i}" data-j="${j}" cx="${p.x}" cy="${p.y}" r="${Math.max(3,inside*.28)}" fill="#b2f7e3" stroke="#182438" stroke-width="1.6"/>`;}
-html+='</svg>';$('preview').innerHTML=html;const svg=$('vectorSvg');svg.addEventListener('pointerdown',e=>{const c=e.target.closest('.node');if(!c||!editing)return;dragging={i:+c.dataset.i,j:+c.dataset.j};svg.setPointerCapture(e.pointerId);e.preventDefault();});svg.addEventListener('pointermove',e=>{if(!dragging)return;const rect=svg.getBoundingClientRect(),box=svg.viewBox.baseVal;lines[dragging.i][dragging.j]={x:Math.max(0,(e.clientX-rect.left)/rect.width*box.width),y:Math.max(0,(e.clientY-rect.top)/rect.height*box.height)};const nd=pathD();for(const el of svg.querySelectorAll('path:not([fill]):not([stroke]),path[fill="none"]'))el.setAttribute('d',nd);const node=svg.querySelector(`circle[data-i="${dragging.i}"][data-j="${dragging.j}"]`);if(node){node.setAttribute('cx',lines[dragging.i][dragging.j].x);node.setAttribute('cy',lines[dragging.i][dragging.j].y);}result=null;built=false;setExport(false);});const finish=()=>{if(dragging){dragging=null;draw();status('Path edited. Generate to refresh manufacturing STL.');}};svg.addEventListener('pointerup',finish);svg.addEventListener('pointercancel',finish);}
-function status(msg,error=false){$('notice').textContent=msg;$('notice').className=error?'notice error':'notice';}
-function fieldOutputs(){for(const id of ['width','clearance','wall','floor','channelDepth','padding','plate','glow']){const o=$(id+'O');if(o)o.textContent=$(id).value+(id==='glow'?'%':' mm');}}
-function applyProfile(){const p=defaults($('led').value);for(const [key,id] of [['clearance','clearance'],['wall','wall'],['floor','floor'],['channelHeight','channelDepth']])$(id).value=p[key];$('profile').innerHTML=`<strong>${E(p.name)}</strong><br>LED width ${p.strip} mm · LED height ${p.stripDepth} mm · slot ${p.inside.toFixed(2)} mm · outer ${p.outside.toFixed(2)} mm<br><b>${p.kind==='side'?'Side-bend profile: channel is only a top-opening approximation. Verify orientation.':p.kind==='bare'?'Bare tape: diffuser and cover must be designed separately.':'Top-opening U-channel profile.'}</b><br>Use your manufacturer's drawing to verify fit.`;fieldOutputs();}
-function gridFromLines(cell,pad){const dims=size(),w=Math.ceil((dims.w+pad)/cell),h=Math.ceil((dims.h+pad)/cell);if(w*h>300000)throw Error('Mesh too detailed for this design. Choose 1.5 mm detail or reduce width.');const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Canvas rendering unavailable.');ctx.strokeStyle='#ffffff';ctx.lineWidth=Math.max(1,1.2/cell);ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();for(const line of lines){ctx.moveTo(line[0].x/cell,line[0].y/cell);for(let i=1;i<line.length;i++)ctx.lineTo(line[i].x/cell,line[i].y/cell);}ctx.stroke();const data=ctx.getImageData(0,0,w,h).data,g=createGrid(w,h);for(let i=0;i<g.data.length;i++)g.data[i]=data[i*4]>70?1:0;return g;}
-function setExport(ok){for(const id of ['channelSTL','svg'])$(id).disabled=!ok;$('backingSTL').disabled=!ok||!result?.mesh.base;}
-function generate(){if(!lines.length)makeLines();status('Building channel and backing surface meshes…');setExport(false);setTimeout(()=>{try{const opt=options();const path=gridFromLines(opt.cell,30+opt.outside+2*opt.backingPadding);if(!count(path))throw Error('Paths did not rasterize.');const mesh=generateMeshes(path,opt);result={mesh,opt};built=true;draw();$('mWidth').textContent=(size().w-35).toFixed(0)+' mm';$('mHeight').textContent=(size().h-35).toFixed(0)+' mm';$('mWalls').textContent=opt.wall.toFixed(1)+' mm';$('mParts').textContent=mesh.components.length+' channels';const warn=[];if(mesh.components.length>1)warn.push(`${mesh.components.length} disconnected channel pieces; arrange bridges or mount individually.`);if(mesh.baseComponents.length>1&&opt.backing)warn.push(`${mesh.baseComponents.length} disconnected backing pieces: add connecting bridges before manufacturing.`);if(opt.profile.kind==='side')warn.push('Side-bend geometry is not mechanically verified; exported channel is top-opening only.');warn.push('Check bend radii, wiring passages, LED product dimensions, retention and mounting before printing.');$('warnings').innerHTML=warn.map(s=>`<p>⚠ ${E(s)}</p>`).join('');setExport(true);status(`Preview and exports ready: ${mesh.channel.triangles.length.toLocaleString()} channel triangles.`);}catch(err){console.error(err);status(`Geometry error: ${err.message}`,true);draw();}},30);}
-function download(name,data,type){const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
-function slug(){return sourceText().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'neon-sign';}
-function svgExport(){const {w,h}=size(),o=options(),d=pathD();const plate=result?.mesh.plate?`<path d="${gridSvgPath(result.mesh.plate,o.cell)}" fill="#777"/>`:'';download(slug()+'-vector-layout.svg',`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}"><title>LEDSign editable centerlines and manufacturing outline</title><desc>Slot ${o.inside} mm; outer ${o.outside} mm; confirm physical LED dimensions.</desc><g id="backing">${plate}</g><g id="channel-centerlines"><path d="${d}" fill="none" stroke="black" stroke-width="0.5"/></g><g id="channel-outside"><path d="${d}" fill="none" stroke="blue" stroke-width="${o.outside}"/></g><g id="channel-slot"><path d="${d}" fill="none" stroke="red" stroke-width="${o.inside}"/></g></svg>`,'image/svg+xml');}
-function wire(){for(const id of ['text','font'])$(id).addEventListener('change',makeLines);$('width').addEventListener('change',()=>{fieldOutputs();makeLines();});for(const id of ['clearance','wall','floor','channelDepth','padding','plate','backing','resolution'])$(id).addEventListener('change',()=>{fieldOutputs();result=null;setExport(false);draw();status('Dimensions changed. Generate again to refresh STL.');});$('led').addEventListener('change',()=>{applyProfile();result=null;setExport(false);draw();});$('light').addEventListener('input',draw);$('glow').addEventListener('input',()=>{fieldOutputs();draw();});$('generate').addEventListener('click',generate);$('channelSTL').addEventListener('click',()=>result&&download(slug()+'-channel.stl',stl(result.mesh.channel,'LEDSignChannel'),'model/stl'));$('backingSTL').addEventListener('click',()=>result?.mesh.base&&download(slug()+'-backing.stl',stl(result.mesh.base,'LEDSignBacking'),'model/stl'));$('svg').addEventListener('click',svgExport);$('viewTop').addEventListener('click',()=>$('preview').classList.remove('angled'));$('viewAngle').addEventListener('click',()=>$('preview').classList.add('angled'));$('toggleEdit').addEventListener('click',()=>{editing=!editing;$('toggleEdit').textContent=editing?'Hide nodes':'Edit nodes';draw();});$('resetPaths').addEventListener('click',makeLines);$('fontFile').addEventListener('change',()=>status('Uploaded outline fonts require tracing; this version uses an editable single-stroke vector alphabet instead. No font uploaded.'));
-applyProfile();fieldOutputs();makeLines();generate();}
-try{wire();}catch(err){console.error('LEDSign initialization failed',err);status('Initialization error: '+err.message,true);$('preview').textContent='Preview could not initialize. Check browser console.';}
+
+function pathsFromUploadedFont(){
+  const text=sourceText();
+  const canvas=document.createElement('canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if(!ctx)throw Error('Canvas 2D unavailable in this browser.');
+  const family='LEDSignUploaded';
+  const px=115;
+  ctx.font=`${px}px "${family}"`;
+  const measure=ctx.measureText(text);
+  const scale=Math.min(1,610/Math.max(1,measure.width+24));
+  const w=Math.max(40,Math.min(640,Math.ceil(measure.width*scale+30)));
+  const h=Math.ceil(160*scale+20);
+  canvas.width=w;canvas.height=h;
+  ctx.font=`${px*scale}px "${family}"`;
+  ctx.textBaseline='alphabetic';ctx.fillStyle='white';
+  ctx.fillText(text,12,118*scale+8);
+  const rgba=ctx.getImageData(0,0,w,h).data;
+  const mask=createGrid(w,h);
+  for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>115?1:0;
+  if(count(mask)<10)throw Error('Font rendered no visible text. Try another TTF or OTF file.');
+  const sk=skeletonize(mask);
+  return traceSkeleton(sk);
+}
+function traceSkeleton(g){
+  const {w,h}=g, mark=g.data;
+  const offsets=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+  function around(i){const x=i%w,y=Math.floor(i/w),out=[];for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&mark[yy*w+xx])out.push(yy*w+xx);}return out;}
+  const nbr=new Map();for(let i=0;i<mark.length;i++)if(mark[i])nbr.set(i,around(i));
+  const used=new Set(),paths=[];const key=(a,b)=>a<b?a+':'+b:b+':'+a;
+  const pos=i=>({x:i%w,y:Math.floor(i/w)});
+  function walk(a,b){let previous=a,current=b,pts=[pos(a),pos(b)];used.add(key(a,b));let steps=0;while(steps++<mark.length){const n=(nbr.get(current)||[]).filter(k=>k!==previous&&!used.has(key(current,k)));if(n.length!==1)break;const next=n[0];used.add(key(current,next));pts.push(pos(next));previous=current;current=next;if(current===a)break;}if(pts.length>1){const sampled=pts.filter((_,i)=>i===0||i===pts.length-1||i%3===0);paths.push(sampled);}}
+  for(const [i,n] of nbr)if(n.length!==2)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
+  for(const [i,n] of nbr)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
+  if(!paths.length)throw Error('Font has no traceable strokes. Choose another font.');
+  return paths;
+}
+async function uploadFont(file){
+  if(!file)return;
+  if(!/\.(ttf|otf)$/i.test(file.name))throw Error('Choose a .ttf or .otf font file.');
+  if(file.size>12*1024*1024)throw Error('Font exceeds the 12 MB maximum.');
+  uploadBusy=true;status('Reading font '+file.name+'…');
+  try{
+    const buffer=await file.arrayBuffer();
+    const face=new FontFace('LEDSignUploaded',buffer);
+    await face.load();
+    if(uploadedFont)document.fonts.delete(uploadedFont);
+    document.fonts.add(face);uploadedFont=face;
+    $('font').value='custom';
+    uploadBusy=false;customFont=true;buildLines();
+    status('Font loaded: '+file.name+'. Centerline paths traced; inspect and edit the nodes before printing.');
+  }finally{uploadBusy=false;}
+}
+
+
+// Smooth, sampled polyline geometry in physical millimetres.
+function smooth(points){if(points.length<3)return points.map(p=>({...p}));const out=[];for(let i=0;i<points.length-1;i++){const p0=points[Math.max(0,i-1)],p1=points[i],p2=points[i+1],p3=points[Math.min(points.length-1,i+2)],n=Math.max(2,Math.ceil(Math.hypot(p2.x-p1.x,p2.y-p1.y)/2));for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;const xy=key=>.5*((2*p1[key])+(-p0[key]+p2[key])*t+(2*p0[key]-5*p1[key]+4*p2[key]-p3[key])*t2+(-p0[key]+3*p1[key]-3*p2[key]+p3[key])*t3);out.push({x:xy('x'),y:xy('y')});}}out.push({...points.at(-1)});return out;}
+function shapePaths(){return shapes.map(s=>{const p=[];const n=s.kind==='line'?2:Math.max(32,Math.ceil(Math.max(s.w,s.h)/3)),count=s.kind==='arc'?n: n;for(let i=0;i<count;i++){let x,y,t=i/(count-1);if(s.kind==='line'){x=(t-.5)*s.w;y=0;}else if(s.kind==='rectangle'){const d=t*4;const a=Math.floor(d)%4,u=d-a;const edges=[[-.5+u,-.5],[.5,-.5+u],[.5-u,.5],[-.5,.5-u]];[x,y]=edges[a];x*=s.w;y*=s.h;}else{const ang=(s.kind==='arc'?Math.PI*(1-t):2*Math.PI*t);x=Math.cos(ang)*s.w*.5;y=Math.sin(ang)*s.h*.5;}p.push({x:s.x+x,y:s.y+y});}if(s.kind==='circle'||s.kind==='ellipse'||s.kind==='rectangle')p.push({...p[0]});return p;});}
+function allPaths(){return [...lines,...shapePaths()].filter(p=>p.length>1);}
+function range(){const pts=allPaths().flat();if(!pts.length)return {minX:0,minY:0,maxX:450,maxY:150,w:450,h:150};const minX=Math.min(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxX=Math.max(...pts.map(p=>p.x)),maxY=Math.max(...pts.map(p=>p.y));return {minX,minY,maxX,maxY,w:maxX-minX,h:maxY-minY};}
+function opts(){const p=PROFILES[$('led').value],clearance=+$('clearance').value,wall=+$('wall').value;return {inner:p.w+2*clearance,outer:p.w+2*clearance+2*wall,floor:+$('floor').value,height:+$('channelHeight').value,pad:+$('padding').value,backingHeight:+$('plate').value,p};}
+function labels(){for(const id of ['width','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id+'O').textContent=$(id).value+(id==='glow'?'%':' mm');const o=opts();$('profile').textContent=`Opening ${o.inner.toFixed(1)} mm · outside ${o.outer.toFixed(1)} mm · nominal LED ${o.p.w}×${o.p.h} mm · manufacturer minimum bend radius must be checked (example ${o.p.bend} mm).`;}
+function svg(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.append(e);return e;}
+function dpath(pts){return 'M'+pts.map(p=>`${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L');}
+function view(){labels();const g=$('content');g.replaceChildren();const r=range(),o=opts(),margin=35,fit=Math.min(820/Math.max(80,r.w+o.outer+margin),475/Math.max(80,r.h+o.outer+margin)),scale=fit*zoom,tx=450-(r.minX+r.w/2)*scale,ty=280-(r.minY+r.h/2)*scale;scene={tx,ty,scale};const root=svg('g',{transform:`translate(${tx} ${ty}) scale(${scale})`},g);const color='#eddaff';for(const [i,path] of allPaths().entries()){const d=dpath(smooth(path));svg('path',{d,stroke:'#82769b','stroke-width':o.outer+2,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:'#181726','stroke-width':o.inner,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.8),fill:'none',opacity:(+$('glow').value/100)*.7,filter:'url(#glowfilter)','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.65),fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);}
+shapes.forEach((s,i)=>{const x=s.x+s.w/2,y=s.y+s.h/2;if(selected===i){svg('rect',{x:s.x-s.w/2,y:s.y-s.h/2,width:s.w,height:s.h,stroke:'#84ffe1','stroke-width':1.3/scale*6,fill:'none','stroke-dasharray':`${5/scale*6} ${3/scale*6}`},root);svg('circle',{cx:x,cy:y,r:7/scale,fill:'#84ffe1','data-resize':i},root);}const p=svg('path',{d:dpath(shapePaths()[i]),fill:'none',stroke:'transparent','stroke-width':Math.max(18/scale,o.outer),'data-shape':i,'stroke-linecap':'round'},root);p.style.cursor='move';});$('dimensions').textContent=`${Math.ceil(r.w+o.outer)} × ${Math.ceil(r.h+o.outer)} mm`;$('pathcount').textContent=allPaths().length;const bx=+$('bedW').value,by=+$('bedH').value;$('bedstate').textContent=r.w+o.outer<=bx&&r.h+o.outer<=by?'Fits':'Oversized';}
+function buildLines(){try{if($('font').value==='custom'){if(!uploadedFont)throw Error('Upload a TTF or OTF font first.');lines=normalizePaths(pathsFromUploadedFont());}else lines=normalizePaths(draftPaths());invalidate();status('Lettering paths updated. Ready for STL generation.');}catch(e){status(e.message,true);}}
+function invalidate(){downloadBlob=null;$('download').disabled=true;view();}
+function orient(a,b){return a[0]*b[1]-a[1]*b[0];}
+function capTriangles(poly){const ids=poly.map((_,i)=>i),tri=[];let area=0;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];area+=orient(a,b);}const sign=Math.sign(area)||1;for(let loop=0;ids.length>3&&loop<100;loop++){let found=false;for(let i=0;i<ids.length;i++){const A=ids[(i+ids.length-1)%ids.length],B=ids[i],C=ids[(i+1)%ids.length],a=poly[A],b=poly[B],c=poly[C];if(orient([b[0]-a[0],b[1]-a[1]],[c[0]-b[0],c[1]-b[1]])*sign<1e-8)continue;let inside=false;for(const j of ids){if([A,B,C].includes(j))continue;const p=poly[j];const f=(u,v,w)=>orient([v[0]-u[0],v[1]-u[1]],[w[0]-u[0],w[1]-u[1]])*sign; if(f(a,b,p)>0&&f(b,c,p)>0&&f(c,a,p)>0){inside=true;break;}}if(inside)continue;tri.push([A,B,C]);ids.splice(i,1);found=true;break;}if(!found)throw Error('Could not triangulate end cap.');}if(ids.length===3)tri.push([...ids]);return tri;}
+function swept(points,profile){const pts=smooth(points).filter((p,i,a)=>i===0||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>.15);if(pts.length<2)throw Error('Path too short');const sections=[];for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)],len=Math.hypot(b.x-a.x,b.y-a.y)||1,nx=-(b.y-a.y)/len,ny=(b.x-a.x)/len;sections.push(profile.map(([u,z])=>[pts[i].x+nx*u,pts[i].y+ny*u,z]));}const triangles=[];const add=(a,b,c)=>{if(Math.hypot(...a.map((v,i)=>v-b[i]))<1e-7)return;triangles.push([a,b,c]);};const n=profile.length;for(let i=0;i<sections.length-1;i++)for(let j=0;j<n;j++){const k=(j+1)%n;add(sections[i][j],sections[i+1][j],sections[i+1][k]);add(sections[i][j],sections[i+1][k],sections[i][k]);}const caps=capTriangles(profile);for(const [a,b,c]of caps){add(sections[0][c],sections[0][b],sections[0][a]);const e=sections.at(-1);add(e[a],e[b],e[c]);}return triangles;}
+function channelProfile(o){return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];}
+function solidProfile(width,height){return [[-width/2,0],[width/2,0],[width/2,height],[-width/2,height]];}
+function stlBinary(tris){const bytes=new ArrayBuffer(84+tris.length*50),v=new DataView(bytes);v.setUint32(80,tris.length,true);let offset=84;for(const t of tris){const [a,b,c]=t,A=b.map((x,i)=>x-a[i]),B=c.map((x,i)=>x-a[i]),N=[A[1]*B[2]-A[2]*B[1],A[2]*B[0]-A[0]*B[2],A[0]*B[1]-A[1]*B[0]],l=Math.hypot(...N)||1;for(const x of N)v.setFloat32(offset,(x/l)||0,true),offset+=4;for(const vertex of t)for(const x of vertex)v.setFloat32(offset,x,true),offset+=4;v.setUint16(offset,0,true);offset+=2;}return new Uint8Array(bytes);}
+function crc32(bytes){let c=~0;for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xedb88320:c>>>1;}return(~c)>>>0;}
+function zip(files){
+ const enc=new TextEncoder(), local=[],central=[];let offset=0;
+ const u16=n=>[n&255,(n>>>8)&255],u32=n=>[n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255];
+ for(const [name,content] of files){
+  const fn=enc.encode(name), b=typeof content==='string'?enc.encode(content):content, crc=crc32(b);
+  const header=new Uint8Array([80,75,3,4,...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(b.length),...u32(b.length),...u16(fn.length),...u16(0),...fn]);
+  local.push(header,b);
+  const directory=new Uint8Array([80,75,1,2,...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(b.length),...u32(b.length),...u16(fn.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(offset),...fn]);
+  central.push(directory);offset+=header.length+b.length;
+ }
+ const size=central.reduce((n,b)=>n+b.length,0), end=new Uint8Array([80,75,5,6,...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(size),...u32(offset),...u16(0)]);
+ return new Blob([...local,...central,end],{type:'application/zip'});
+}
+function nextFrame(){return new Promise(resolve=>setTimeout(resolve,0));}
+function clipSegment(a,b,x0,y0,x1,y1){
+ let t0=0,t1=1,dx=b.x-a.x,dy=b.y-a.y;
+ for(const [p,q] of [[-dx,a.x-x0],[dx,x1-a.x],[-dy,a.y-y0],[dy,y1-a.y]]){
+  if(Math.abs(p)<1e-10){if(q<0)return null;continue;}
+  const t=q/p;if(p<0){if(t>t1)return null;t0=Math.max(t0,t);}else{if(t<t0)return null;t1=Math.min(t1,t);}
+ }
+ if(t1-t0<1e-6)return null;
+ return [{x:a.x+dx*t0,y:a.y+dy*t0},{x:a.x+dx*t1,y:a.y+dy*t1}];
+}
+function clipPath(path,rect){const pieces=[];let current=[];
+ function push(){if(current.length>1)pieces.push(current);current=[];}
+ for(let i=1;i<path.length;i++){
+  const segment=clipSegment(path[i-1],path[i],...rect);
+  if(!segment){push();continue;}
+  if(current.length&&Math.hypot(current.at(-1).x-segment[0].x,current.at(-1).y-segment[0].y)>.02)push();
+  if(!current.length)current.push(segment[0]);current.push(segment[1]);
+ }push();return pieces;
+}
+function splitForBed(paths,bx,by,extent){
+ const pts=paths.flat();if(!pts.length)return [];
+ const left=Math.min(...pts.map(v=>v.x)),right=Math.max(...pts.map(v=>v.x)),top=Math.min(...pts.map(v=>v.y)),bottom=Math.max(...pts.map(v=>v.y));
+ const w=bx-2*extent,h=by-2*extent;if(w<=5||h<=5)throw Error('Selected bed is too small for the channel/support width.');
+ const cols=Math.max(1,Math.ceil((right-left)/w)),rows=Math.max(1,Math.ceil((bottom-top)/h));if(cols*rows>120)throw Error('Too many print tiles; increase build plate or reduce sign dimensions.');
+ const pieces=[];for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+  const x0=left+x*w,y0=top+y*h, rect=[x0,y0,x0+w,y0+h];
+  for(const path of paths)for(const segment of clipPath(smooth(path),rect)){
+   if(segment.length>1)pieces.push({path:segment.map(p=>({x:p.x-x0+extent,y:p.y-y0+extent})),tileX:x+1,tileY:y+1});
+  }
+ }return {pieces,cols,rows};
+}
+async function generate(){
+ try{
+  if(!lines.length)throw Error('No lettering paths');
+  const o=opts(),bx=+$('bedW').value,by=+$('bedH').value;
+  if(!Number.isFinite(bx)||!Number.isFinite(by)||bx<50||by<50)throw Error('Enter valid build plate dimensions.');
+  if(o.height<=o.floor)throw Error('Channel height must exceed floor thickness.');
+  const extent=Math.max(o.outer/2,(o.outer+2*o.pad)/2)+2;
+  const split=splitForBed(allPaths(),bx,by,extent),files=[],pieces=split.pieces;
+  if(!pieces.length)throw Error('Nothing to export.');
+  $('generate').disabled=true;status(`Preparing ${pieces.length} printable path sections…`);await nextFrame();
+  for(let i=0;i<pieces.length;i++){
+   const {path,tileX,tileY}=pieces[i],name=`tile-${tileX}-${tileY}-stroke-${String(i+1).padStart(3,'0')}`;
+   const channel=swept(path,channelProfile(o));
+   files.push([`channels/${name}.stl`,stlBinary(channel)]);
+   if($('backing').checked)files.push([`supports/${name}.stl`,stlBinary(swept(path,solidProfile(o.outer+2*o.pad,o.backingHeight)))]);
+   if(i%3===0){status(`Generating ${i+1} / ${pieces.length} printable sections…`);await nextFrame();}
+  }
+  const note=`LEDSign STL parts; units millimeters.\nBuild plate ${bx} x ${by} mm; ${split.cols} columns x ${split.rows} rows.\nEach file is a separate path piece positioned within its print tile.\nSegments have flat unjoined ends: NO snap locks or dovetails. Use a mounting panel or a separately designed positive locking mechanism.\nDo not print until slicer checks verify bounding dimensions, manifold geometry, intersections, and LED fit.\nOutput channels are U-shaped, not manufacturer validated.\n`;
+  files.push(['README-PRINTING.txt',note]);
+  downloadBlob=zip(files);$('download').disabled=false;
+  status(`Generated ${files.length-1} STL models; ${split.cols} x ${split.rows} build-bed tiles. Download and inspect in your slicer. No locking joints included.`);
+ }catch(e){status('Generation failed: '+e.message,true);}finally{$('generate').disabled=false;}
+}
+function download(){if(!downloadBlob)return;const url=URL.createObjectURL(downloadBlob),a=document.createElement('a');a.href=url;a.download='LEDSign-printable-channels.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
+let pointer=null;
+function world(e){const svg=$('preview'),pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return {x:0,y:0};const v=pt.matrixTransform(m.inverse());return {x:(v.x-scene.tx)/scene.scale,y:(v.y-scene.ty)/scene.scale};}
+function alignSelected(axis){
+ if(selected<0||!shapes[selected]){status('Select a shape by clicking or dragging it first.',true);return;}
+ const pts=lines.flat();if(!pts.length)return;
+ const minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));
+ const s=shapes[selected];
+ if(axis==='left')s.x=minX+s.w/2;
+ if(axis==='right')s.x=maxX-s.w/2;
+ if(axis==='center')s.x=(minX+maxX)/2;
+ if(axis==='top')s.y=minY+s.h/2;
+ if(axis==='bottom')s.y=maxY-s.h/2;
+ if(axis==='middle')s.y=(minY+maxY)/2;
+ invalidate();
+}
+function wire(){for(const id of ['text','width'])$(id).addEventListener('input',buildLines);for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',buildLines);$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;buildLines();}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
+window.addEventListener('error',e=>status(`Application error: ${e.message}`,true));
+wire();buildLines();
