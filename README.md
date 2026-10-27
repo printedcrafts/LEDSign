@@ -1,17 +1,20 @@
-# LEDSign — shapes and smooth vector backing (pre-release)
+# LEDSign: printable neon channels (reliability revision)
 
-## Install
-Upload `index.html` to the repository root. No extra JS bundles are required.
+Upload `index.html`, `style.css`, and `app.js` to the root of a GitHub Pages repository. The page is static and does not require a build step.
 
-## Changes
-- Added editable line, rectangle, circle, ellipse and arc centerlines. Use Add shape, Undo last shape or Clear shapes.
-- Text and added shapes use the same LED channel selection, preview, and STL / SVG export pipeline.
-- Preview and SVG centerlines now use smoothed cubic curves rather than a polygonal polyline.
-- Backing SVG output traces a single contour around raster cells instead of exporting thousands of overlapping rectangle paths, and rounds the contour's sharp pixel corners.
-- Slider values update as they move; geometry generation remains a separate operation with an elapsed-time indicator.
+## Fixed in this revision
+- Spaces in lettering create spacing only; they never generate the previous unwanted `o` glyph.
+- Selected shapes can be aligned Left, Center, Right, Top, Middle, or Bottom relative to the lettering bounds.
+- Preview dragging uses the SVG screen transform, including CSS scaling and zoom, rather than multiplying pointer movement using the screen rectangle.
+- The slicer export uses a repaired standards-conforming ZIP writer. ZIP integrity was checked using an independent archive extractor.
+- Printer X/Y dimensions are used to clip channel and support **paths** into bed-sized STL sections. The dimensions leave a safety margin for sweep thickness. Sections are named by tile location.
 
-## Fabrication limitations
-STL files still use a raster voxel meshing method and may have faceted/stepped perimeter edges. The smoother SVG backing is not a guarantee of equally smooth 3D-printed STL walls. For laser cutting or precise smooth curves, inspect SVG geometry in CAD first. Do not use the generated STL for sale or production without repairing/checking manifoldness, continuity, fit, bend radii, and mounting requirements. Shape loops may need bridges to connect to a single backing. Uploaded font paths are approximate stroke traces, not exact outline conversion.
+## Important manufacturing limitations
+- Segmented channels/supports have simple cut ends, **not a locking dovetail or snap joint**. The previous false locking claim has been removed. A physically tested connector is needed for self-retaining assembly.
+- Individual paths are exported as independent meshes; crossings/intersections are not boolean-unioned. Verify in a slicer.
+- Uploaded fonts are approximate raster-to-centerline traces, not guaranteed manufacturable sign paths. Check every output before printing.
+- Only X/Y bed fit is considered, and the generated profiles are illustrative until verified against a specific LED product's datasheet.
+- There is no automatic assembly plate or unified contour backplane. The support output is individual strips.
 
-## Verification
-JavaScript syntax is checked using Node.js. A full browser test could not be completed in this environment (headless Chromium timed out). Check default preview, slider updates, shape creation/editing, and generation/download after upload.
+## Tests
+`node --check app.js`, `node test.cjs`, and `node verify.cjs` are included. `verify.cjs` writes a small test ZIP to its original development path and requires adjustment if run elsewhere. A browser-based end-to-end check has not yet been completed.
