@@ -1,17 +1,17 @@
-# LEDSign — reliable standalone preview
+# LEDSign — shapes and smooth vector backing (pre-release)
 
-Upload **index.html** to the root of the `main` branch. No other files are required. The complete stylesheet, vector editor, geometry engine, and exporters are included in this single file.
+## Install
+Upload `index.html` to the repository root. No extra JS bundles are required.
 
-## Preview behavior
-- The SVG preview draws immediately on page load. It never waits for STL generation.
-- Sliders update their numerical outputs on every `input` event (while dragging).
-- LED profile selection sets the physical dimensions of the U-channel; side-bend profiles are a top-opening approximation.
-- Drag mint nodes to edit path centerlines.
-- Click **Generate fabrication STL files** only when ready to download STL. An elapsed-time counter appears while building. Large synchronous computations may pause its display until work completes.
-- Download the SVG layout and separate channel and backing STL exports.
+## Changes
+- Added editable line, rectangle, circle, ellipse and arc centerlines. Use Add shape, Undo last shape or Clear shapes.
+- Text and added shapes use the same LED channel selection, preview, and STL / SVG export pipeline.
+- Preview and SVG centerlines now use smoothed cubic curves rather than a polygonal polyline.
+- Backing SVG output traces a single contour around raster cells instead of exporting thousands of overlapping rectangle paths, and rounds the contour's sharp pixel corners.
+- Slider values update as they move; geometry generation remains a separate operation with an elapsed-time indicator.
 
-## Limitations
-Font upload and true commercial neon path tracing are not implemented. Verify printed dimensions and geometry in your slicer. Contour backing can have disconnected islands. No mounting holes or cable routing. Side-bend profile lacks validated mechanical retention.
+## Fabrication limitations
+STL files still use a raster voxel meshing method and may have faceted/stepped perimeter edges. The smoother SVG backing is not a guarantee of equally smooth 3D-printed STL walls. For laser cutting or precise smooth curves, inspect SVG geometry in CAD first. Do not use the generated STL for sale or production without repairing/checking manifoldness, continuity, fit, bend radii, and mounting requirements. Shape loops may need bridges to connect to a single backing. Uploaded font paths are approximate stroke traces, not exact outline conversion.
 
-## Deploy
-GitHub → LEDSign → root `index.html` → replace with included version → commit. In Pages Settings, use `main / (root)`. Hard reload deployed page.
+## Verification
+JavaScript syntax is checked using Node.js. A full browser test could not be completed in this environment (headless Chromium timed out). Check default preview, slider updates, shape creation/editing, and generation/download after upload.
