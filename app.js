@@ -42,8 +42,40 @@ const glyph={
 };
 const caps={A:'M5 81 Q26 22 45 6 Q56 35 66 81 M16 54 Q41 49 62 53',B:'M12 10 L11 81 Q68 90 69 61 Q68 46 15 46 Q70 52 63 25 Q59 5 12 10',C:'M64 25 Q46 0 24 17 Q-2 39 16 68 Q36 98 68 65',D:'M12 10 L12 80 Q75 92 76 44 Q75 3 12 10',E:'M62 11 L11 11 L12 80 L64 80 M12 46 L51 45',F:'M12 81 L12 11 L65 11 M12 46 L55 46',G:'M69 24 Q44 -2 22 18 Q0 41 18 69 Q36 94 70 67 L70 49 L45 49',H:'M12 10 L12 81 M65 10 L65 81 M12 46 L65 46',I:'M23 10 L23 81',J:'M49 10 L48 65 Q45 91 14 75',K:'M12 10 L12 81 M65 10 L12 55 M29 44 L68 81',L:'M12 10 L12 80 L65 80',M:'M8 81 L10 10 L40 53 L70 10 L73 81',N:'M12 81 L12 11 L68 81 L68 10',O:'M39 8 Q9 7 9 43 Q9 83 39 83 Q71 83 71 44 Q71 8 39 8',P:'M12 81 L12 10 Q65 4 65 33 Q65 55 12 52',Q:'M39 8 Q9 7 9 43 Q9 83 39 83 Q71 83 71 44 Q71 8 39 8 M49 69 L75 90',R:'M12 81 L12 10 Q65 4 65 33 Q65 54 12 52 M42 52 L70 81',S:'M64 20 Q39 0 19 17 Q4 33 37 46 Q77 63 55 76 Q31 89 9 68',T:'M6 12 L73 12 M39 12 L39 81',U:'M10 10 L10 59 Q10 86 38 83 Q66 81 66 57 L66 10',V:'M8 10 L39 81 L70 10',W:'M5 10 L20 81 L40 42 L60 81 L77 10',X:'M10 10 L70 81 M70 10 L10 81',Y:'M7 10 L38 46 L70 10 M38 46 L38 81',Z:'M10 10 L70 10 L10 81 L70 81'};
 
-function draftPaths(){const text=sourceText(), paths=[];let x=0;for(const letter of text){const raw=/\s/.test(letter)?'':(caps[letter]??glyph[letter.toLowerCase()]??glyph.o);if(!raw){x+=47;continue;}const sections=raw.match(/M[^M]+/g)||[];for(const section of sections){const svg=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('d',section);try{const len=svg.getTotalLength(),pts=[];for(let d=0;d<=len;d+=Math.max(7,len/16)){const pt=svg.getPointAtLength(Math.min(d,len));pts.push({x:pt.x+x,y:pt.y});}const end=svg.getPointAtLength(len);pts.push({x:end.x+x,y:end.y});if(pts.length>=2)paths.push(pts);}catch(err){console.error('Invalid letter vector',letter,err);}}x+=letter==='m'||letter==='w'?106:letter==='i'||letter==='l'?42:78;}if(!paths.length)throw Error('No usable characters.');return paths;}
-function normalizePaths(paths){const points=paths.flat();const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));const spanX=Math.max(1,maxX-minX),scale=+$('width').value/spanX;const desiredMargin=15;return paths.map(path=>path.map(pt=>({x:(pt.x-minX)*scale+desiredMargin,y:(pt.y-minY)*scale+desiredMargin})));}
+function draftPaths(){
+  const text=sourceText(),paths=[];let x=0,charIndex=0;
+  for(const letter of text){
+    const raw=/\s/.test(letter)?'':(caps[letter]??glyph[letter.toLowerCase()]??glyph.o);
+    if(!raw){x+=47;charIndex++;continue;}
+    const sections=raw.match(/M[^M]+/g)||[];
+    for(const section of sections){
+      const pathEl=document.createElementNS('http://www.w3.org/2000/svg','path');
+      pathEl.setAttribute('d',section);
+      try{
+        const len=pathEl.getTotalLength(),pts=[];
+        for(let d=0;d<=len;d+=Math.max(5,len/22)){
+          const pt=pathEl.getPointAtLength(Math.min(d,len));pts.push({x:pt.x+x,y:pt.y});
+        }
+        const end=pathEl.getPointAtLength(len);pts.push({x:end.x+x,y:end.y});
+        if(pts.length>=2){pts.charIndex=charIndex;paths.push(pts);}
+      }catch(err){console.error('Invalid letter vector',letter,err);}
+    }
+    x+=letter==='m'||letter==='w'?106:letter==='i'||letter==='l'?42:78;
+    charIndex++;
+  }
+  if(!paths.length)throw Error('No usable characters.');
+  return paths;
+}
+function normalizePaths(paths){
+  const points=paths.flat();const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));
+  const spanX=Math.max(1,maxX-minX),scale=+$('width').value/spanX,desiredMargin=15;
+  const spacing=+$('letterSpacing').value||0,pairAfter=Math.max(1,+$('pairAfter').value||1),pairSpacing=+$('pairSpacing').value||0;
+  return paths.map(path=>{
+    const idx=Number.isFinite(path.charIndex)?path.charIndex:null;
+    const offset=idx===null?0:idx*spacing+(idx>=pairAfter?pairSpacing:0);
+    return path.map(pt=>({x:(pt.x-minX)*scale+desiredMargin+offset,y:(pt.y-minY)*scale+desiredMargin}));
+  });
+}
 
 // Signature-font conversion: first try centerlines, then bounded contours.
 // The fallback is deliberately explicit: a glyph outline is NOT an LED centerline.
@@ -109,38 +141,31 @@ function smoothContourLoop(path){
 }
 
 function pathsFromUploadedFont(){
-  const text=sourceText();
-  const canvas=document.createElement('canvas');
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const text=sourceText(),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
   if(!ctx)throw Error('Canvas 2D unavailable in this browser.');
-  const family='LEDSignUploaded',px=100;
-  ctx.font=`${px}px "${family}"`;
-  const measure=ctx.measureText(text);
-  // Keep enough raster detail for thinning while limiting processing time.
-  // Raster pixels are only a sampling grid; paths are scaled to millimetres later.
+  const family='LEDSignUploaded',px=100;ctx.font=`${px}px "${family}"`;
+  const measure=ctx.measureText(text),targetWidth=Math.max(100,+$('width').value||400);
+  const spacingMm=+$('letterSpacing').value||0,pairSpacingMm=+$('pairSpacing').value||0,pairAfter=Math.max(1,+$('pairAfter').value||1);
+  const spacingPx=spacingMm*measure.width/targetWidth,pairPx=pairSpacingMm*measure.width/targetWidth;
+  const chars=Array.from(text),spacingAllowance=Math.max(0,spacingPx)*(chars.length-1)+Math.max(0,pairPx);
   const scale=Math.min(1,680/Math.max(1,measure.width));
-  const w=Math.max(64,Math.min(720,Math.ceil(measure.width*scale+40)));
-  const h=Math.max(64,Math.min(220,Math.ceil(150*scale+40)));
-  canvas.width=w;canvas.height=h;
-  ctx.font=`${px*scale}px "${family}"`;
-  ctx.textBaseline='alphabetic';ctx.fillStyle='white';
-  ctx.fillText(text,20,120*scale+15);
-  const rgba=ctx.getImageData(0,0,w,h).data;
-  const mask=createGrid(w,h);
+  const w=Math.max(64,Math.min(960,Math.ceil(measure.width*scale+spacingAllowance+48)));
+  const h=Math.max(64,Math.min(240,Math.ceil(150*scale+40)));
+  canvas.width=w;canvas.height=h;ctx.font=`${px*scale}px "${family}"`;ctx.textBaseline='alphabetic';ctx.fillStyle='white';
+  const baseX=24,baseline=120*scale+15;
+  chars.forEach((char,i)=>{
+    const prefix=chars.slice(0,i).join(''),naturalX=ctx.measureText(prefix).width;
+    const x=baseX+naturalX+spacingPx*i+(i>=pairAfter?pairPx:0);
+    ctx.fillText(char,x,baseline);
+  });
+  const rgba=ctx.getImageData(0,0,w,h).data,mask=createGrid(w,h);
   for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>90?1:0;
   if(count(mask)<10)throw Error('Uploaded font did not render pixels. Check the font and text.');
-  const skeleton=skeletonize(mask);
-  const traced=traceSkeleton(skeleton);
+  const skeleton=skeletonize(mask),traced=traceSkeleton(skeleton);
   if(!traced.length)throw Error('No centerline paths could be traced. Try a bolder, simpler font.');
-  // Discard only tiny raster specks; retain short legitimate branches at E/F/G
-  // junctions so the letter does not lose a bar.
-  const useful=traced.filter(path=>{
-    let length=0;
-    for(let i=1;i<path.length;i++)length+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
-    return length>=4;
-  });
+  const useful=traced.filter(path=>{let length=0;for(let i=1;i<path.length;i++)length+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);return length>=4;});
   if(!useful.length)throw Error('The font was too thin or small to create stable centerlines. Try a larger/bolder font.');
-  traceMessage='Automatic raster centerline mode: inspect letter branches and bend radius before printing.';
+  traceMessage='Automatic raster centerline mode: inspect branches and bend radius before printing.';
   return useful;
 }
 function traceSkeleton(g){
@@ -205,32 +230,38 @@ async function uploadFont(file){
 }
 function smooth(points){
   if(points.length<3)return points.map(p=>({...p}));
-  const closeEnough=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<.2;
-  const closed=points.length>3&&closeEnough(points[0],points[points.length-1]);
-  const src=closed?points.slice(0,-1):points;
+  const near=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<.2;
+  const closed=points.length>3&&near(points[0],points[points.length-1]);
+  const src=closed?points.slice(0,-1):points.map(p=>({...p}));
   if(src.length<3)return points.map(p=>({...p}));
-  const out=[];
-  // Closed loops need cyclic Catmull-Rom neighbours. Smoothing them as an
-  // open polyline moves the seam and makes a kink in the O/ring endpoint.
-  const segments=closed?src.length:src.length-1;
-  for(let i=0;i<segments;i++){
-    const p0=src[closed?(i-1+src.length)%src.length:Math.max(0,i-1)];
-    const p1=src[i],p2=src[(i+1)%src.length]||src[i+1];
-    const p3=src[closed?(i+2)%src.length:Math.min(src.length-1,i+2)];
-    const n=Math.max(2,Math.ceil(Math.hypot(p2.x-p1.x,p2.y-p1.y)/2));
-    for(let k=0;k<n;k++){
-      const t=k/n,t2=t*t,t3=t2*t;
-      const xy=key=>.5*((2*p1[key])+(-p0[key]+p2[key])*t+(2*p0[key]-5*p1[key]+4*p2[key]-p3[key])*t2+(-p0[key]+3*p1[key]-3*p2[key]+p3[key])*t3);
-      out.push({x:xy('x'),y:xy('y')});
-    }
+  function distToSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
+  function rdp(list,tolerance){
+    if(list.length<=2)return list.map(p=>({...p}));
+    const keep=new Uint8Array(list.length);keep[0]=keep[list.length-1]=1;const stack=[[0,list.length-1]];
+    while(stack.length){const [a,b]=stack.pop();let max=tolerance,index=-1;for(let i=a+1;i<b;i++){const d=distToSegment(list[i],list[a],list[b]);if(d>max){max=d;index=i;}}if(index>=0){keep[index]=1;stack.push([a,index],[index,b]);}}
+    return list.filter((_,i)=>keep[i]).map(p=>({...p}));
   }
-  if(closed)out.push({...out[0]});else out.push({...points.at(-1)});
-  return out;
+  let reduced;
+  if(!closed)reduced=rdp(src,.65);
+  else{
+    let far=1,max=0;for(let i=1;i<src.length;i++){const d=Math.hypot(src[i].x-src[0].x,src[i].y-src[0].y);if(d>max){max=d;far=i;}}
+    const arc=(a,b)=>{const out=[src[a]];let i=a;while(i!==b&&out.length<=src.length+1){i=(i+1)%src.length;out.push(src[i]);}return out;};
+    const a=rdp(arc(0,far),.65),b=rdp(arc(far,0),.65);reduced=a.concat(b.slice(1,-1));
+  }
+  let smoothPts=reduced;
+  for(let pass=0;pass<2;pass++){
+    if(closed){const next=[];for(let i=0;i<smoothPts.length;i++){const p=smoothPts[i],q=smoothPts[(i+1)%smoothPts.length];next.push({x:.75*p.x+.25*q.x,y:.75*p.y+.25*q.y},{x:.25*p.x+.75*q.x,y:.25*p.y+.75*q.y});}smoothPts=next;}
+    else{const next=[{...smoothPts[0]}];for(let i=0;i<smoothPts.length-1;i++){const p=smoothPts[i],q=smoothPts[i+1];next.push({x:.75*p.x+.25*q.x,y:.75*p.y+.25*q.y},{x:.25*p.x+.75*q.x,y:.25*p.y+.75*q.y});}next.push({...smoothPts[smoothPts.length-1]});smoothPts=next;}
+  }
+  const result=[],step=2,segments=closed?smoothPts.length:smoothPts.length-1;
+  for(let i=0;i<segments;i++){const a=smoothPts[i],b=smoothPts[(i+1)%smoothPts.length],len=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(len/step));for(let k=0;k<n;k++){const t=k/n;result.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});}}
+  if(closed){if(result.length)result.push({...result[0]});}else result.push({...smoothPts[smoothPts.length-1]});
+  return result;
 }
 function shapePaths(){return shapes.map(s=>{const p=[];const n=s.kind==='line'?2:Math.max(32,Math.ceil(Math.max(s.w,s.h)/3)),count=s.kind==='arc'?n: n;for(let i=0;i<count;i++){let x,y,t=i/(count-1);if(s.kind==='line'){x=(t-.5)*s.w;y=0;}else if(s.kind==='rectangle'){const d=t*4;const a=Math.floor(d)%4,u=d-a;const edges=[[-.5+u,-.5],[.5,-.5+u],[.5-u,.5],[-.5,.5-u]];[x,y]=edges[a];x*=s.w;y*=s.h;}else{const ang=(s.kind==='arc'?Math.PI*(1-t):2*Math.PI*t);x=Math.cos(ang)*s.w*.5;y=Math.sin(ang)*s.h*.5;}p.push({x:s.x+x,y:s.y+y});}if(s.kind==='circle'||s.kind==='ellipse'||s.kind==='rectangle')p.push({...p[0]});return p;});}
 function allPaths(){return [...lines,...shapePaths()].filter(p=>p.length>1);}
 function range(){if(manualMode&&uploadedFont&&$('font').value==='custom'){const c=document.createElement('canvas').getContext('2d');c.font='100px LEDSignUploaded';const tw=c.measureText(sourceText()).width||100;return {minX:0,minY:0,maxX:+$('width').value,maxY:Math.max(50,100*(+$('width').value)/tw),w:+$('width').value,h:Math.max(50,100*(+$('width').value)/tw)};}const pts=allPaths().flat();if(!pts.length)return {minX:0,minY:0,maxX:450,maxY:150,w:450,h:150};const minX=Math.min(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxX=Math.max(...pts.map(p=>p.x)),maxY=Math.max(...pts.map(p=>p.y));return {minX,minY,maxX,maxY,w:maxX-minX,h:maxY-minY};}
-function opts(){const p=PROFILES[$('led').value],clearance=+$('clearance').value,wall=+$('wall').value;return {inner:p.w+2*clearance,outer:p.w+2*clearance+2*wall,floor:+$('floor').value,height:+$('channelHeight').value,pad:+$('padding').value,backingHeight:+$('plate').value,p};}
+function opts(){const p=PROFILES[$('led').value],clearance=+$('clearance').value,wall=+$('wall').value;return {inner:p.w+2*clearance,outer:p.w+2*clearance+2*wall,floor:+$('floor').value,height:+$('channelHeight').value,pad:+$('padding').value,backingHeight:+$('plate').value,backing:$('backing').checked,mountStyle:$('mountStyle').value,p};}
 function labels(){for(const id of ['width','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id+'O').textContent=$(id).value+(id==='glow'?'%':' mm');const o=opts();$('profile').textContent=`Opening ${o.inner.toFixed(1)} mm · outside ${o.outer.toFixed(1)} mm · nominal LED ${o.p.w}×${o.p.h} mm · manufacturer minimum bend radius must be checked (example ${o.p.bend} mm).`;}
 function svg(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.append(e);return e;}
 function dpath(pts){return 'M'+pts.map(p=>`${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L');}
@@ -281,7 +312,11 @@ function swept(points,profile){
   }
   return triangles;
 }
-function channelProfile(o){return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];}
+function channelProfile(o){
+  if(!o.backing)return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];
+  const ext=o.outer/2+o.pad,b=o.backingHeight,h=o.height,f=o.floor;
+  return [[-ext,0],[ext,0],[ext,b],[o.outer/2,b],[o.outer/2,b+h],[o.inner/2,b+h],[o.inner/2,b+f],[-o.inner/2,b+f],[-o.inner/2,b+h],[-o.outer/2,b+h],[-o.outer/2,b],[-ext,b]];
+}
 function solidProfile(width,height){return [[-width/2,0],[width/2,0],[width/2,height],[-width/2,height]];}
 function stlBinary(tris){const bytes=new ArrayBuffer(84+tris.length*50),v=new DataView(bytes);v.setUint32(80,tris.length,true);let offset=84;for(const t of tris){const [a,b,c]=t,A=b.map((x,i)=>x-a[i]),B=c.map((x,i)=>x-a[i]),N=[A[1]*B[2]-A[2]*B[1],A[2]*B[0]-A[0]*B[2],A[0]*B[1]-A[1]*B[0]],l=Math.hypot(...N)||1;for(const x of N)v.setFloat32(offset,(x/l)||0,true),offset+=4;for(const vertex of t)for(const x of vertex)v.setFloat32(offset,x,true),offset+=4;v.setUint16(offset,0,true);offset+=2;}return new Uint8Array(bytes);}
 function crc32(bytes){let c=~0;for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xedb88320:c>>>1;}return(~c)>>>0;}
@@ -318,16 +353,21 @@ function clipPath(path,rect){const pieces=[];let current=[];
  }push();return pieces;
 }
 function splitForBed(paths,bx,by,extent){
- const pts=paths.flat();if(!pts.length)return [];
- const left=Math.min(...pts.map(v=>v.x)),right=Math.max(...pts.map(v=>v.x)),top=Math.min(...pts.map(v=>v.y)),bottom=Math.max(...pts.map(v=>v.y));
- const w=bx-2*extent,h=by-2*extent;if(w<=5||h<=5)throw Error('Selected bed is too small for the channel/support width.');
- const cols=Math.max(1,Math.ceil((right-left)/w)),rows=Math.max(1,Math.ceil((bottom-top)/h));if(cols*rows>120)throw Error('Too many print tiles; increase build plate or reduce sign dimensions.');
- const pieces=[];for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
-  const x0=left+x*w,y0=top+y*h, rect=[x0,y0,x0+w,y0+h];
-  for(const path of paths)for(const segment of clipPath(smooth(path),rect)){
-   if(segment.length>1)pieces.push({path:segment.map(p=>({x:p.x-x0+extent,y:p.y-y0+extent})),tileX:x+1,tileY:y+1});
+  const pts=paths.flat();if(!pts.length)return {pieces:[],cols:0,rows:0,left:0,top:0,tileW:bx-2*extent,tileH:by-2*extent,extent};
+  const left=Math.min(...pts.map(v=>v.x)),right=Math.max(...pts.map(v=>v.x)),top=Math.min(...pts.map(v=>v.y)),bottom=Math.max(...pts.map(v=>v.y));
+  const w=bx-2*extent,h=by-2*extent;if(w<=5||h<=5)throw Error('Selected bed is too small for the channel/backplane width.');
+  const cols=Math.max(1,Math.ceil((right-left)/w)),rows=Math.max(1,Math.ceil((bottom-top)/h));if(cols*rows>120)throw Error('Too many print tiles; increase build plate or reduce sign dimensions.');
+  const pieces=[];
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    const x0=left+x*w,y0=top+y*h,rect=[x0,y0,x0+w,y0+h];
+    for(let pi=0;pi<paths.length;pi++){
+      const path=paths[pi];let segmentIdx=0;
+      for(const segment of clipPath(path,rect)){
+        if(segment.length>1)pieces.push({path:segment.map(p=>({x:p.x-x0+extent,y:p.y-y0+extent})),tileX:x+1,tileY:y+1,strokeIndex:pi+1,segmentIndex:++segmentIdx});
+      }
+    }
   }
- }return {pieces,cols,rows};
+  return {pieces,cols,rows,left,top,tileW:w,tileH:h,extent};
 }
 async function generate(){if(fontPreviewOnly){status('Cannot generate STL: '+(traceMessage||'font centerline extraction did not complete')+'. Please review the font or edit the vector paths.',true);return;}
  try{
