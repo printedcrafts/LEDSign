@@ -11,6 +11,8 @@
 <label for="font">Lettering source<select id="font"><option value="stroke" selected>PrintedCrafts single-line alphabet</option><option value="custom">Uploaded font — auto centerline trace</option></select></label>
 <label for="fontFile">Upload font (.ttf / .otf)<input id="fontFile" type="file" accept=".ttf,.otf,font/ttf,font/otf"></label>
 <div class="buttons"><button id="autoTrace">Auto-trace uploaded font</button><button id="manualBegin">Manual route / correction</button></div>
+<div class="twocol"><label for="letterSpacing">Letter spacing <output id="letterSpacingO">1.0 mm</output><input id="letterSpacing" type="range" min="-2" max="8" step=".5" value="1"></label><label for="pairAfter">Adjust pair after character<input id="pairAfter" type="number" min="1" max="28" step="1" value="1"></label></div>
+<label for="pairSpacing">Pair adjustment <output id="pairSpacingO">0.0 mm</output><input id="pairSpacing" type="range" min="-8" max="12" step=".5" value="0"></label><p class="hint" id="pairStatus">Adjust global character spacing or one adjacent pair.</p>
 <div class="buttons"><button id="manualFinish">Finish section</button><button id="manualUndo">Undo point</button><button id="manualClear">Clear LED paths</button></div>
 <p class="hint">Automatic tracing thins a filled font raster to a medial skeleton. Branching letters may need correction. The built-in alphabet is designed as single-line neon strokes.</p>
 <label for="width">Target lettering width <output id="widthO">400 mm</output><input id="width" type="range" min="100" max="1200" step="10" value="400"></label>
@@ -23,9 +25,10 @@
 <label for="channelHeight">Channel height <output id="channelHeightO">14 mm</output><input id="channelHeight" type="range" min="6" max="30" step="1" value="14"></label>
 <label for="glow">Preview glow <output id="glowO">75%</output><input id="glow" type="range" min="10" max="100" step="5" value="75"></label>
 <hr><h2><b>03</b> Supports &amp; print bed</h2>
-<label class="check" for="backing"><input id="backing" type="checkbox" checked> Generate contour support strips</label>
+<label class="check" for="backing"><input id="backing" type="checkbox" checked> Integrate channel and backplane flange</label>
 <label for="padding">Support width beyond channel <output id="paddingO">14 mm</output><input id="padding" type="range" min="4" max="40" step="1" value="14"></label>
 <label for="plate">Support plate thickness <output id="plateO">3 mm</output><input id="plate" type="range" min="1.2" max="6" step=".2" value="3"></label>
+<label for="mountStyle">Mounting method<select id="mountStyle"><option value="none">No mounting accessories</option><option value="keyholes" selected>Keyhole hanger tabs</option><option value="eyelets">Eyelets for chain / cord</option><option value="posts">Wall standoff posts</option></select></label><p class="hint">Mounts export as separate parts for bonding or mechanical attachment. Verify hardware fit and load capacity before hanging.</p>
 <label for="printer">Printer bed preset<select id="printer"><option value="256,256" selected>Bambu / 256 × 256 mm</option><option value="180,180">Mini bed / 180 × 180 mm</option><option value="250,210">Prusa MK / 250 × 210 mm</option><option value="360,360">Large bed / 360 × 360 mm</option><option value="300,300">300 × 300 mm</option><option value="220,220">220 × 220 mm</option><option value="custom">Custom bed dimensions</option></select></label>
 <div class="twocol"><label for="bedW">Bed width (mm)<input id="bedW" type="number" min="50" max="1000" value="256"></label><label for="bedH">Bed depth (mm)<input id="bedH" type="number" min="50" max="1000" value="256"></label></div>
 <div class="metrics"><div><small>LETTERING</small><strong id="dimensions">—</strong></div><div><small>LED PATHS</small><strong id="pathcount">0</strong></div><div><small>BED CHECK</small><strong id="bedstate">—</strong></div></div>

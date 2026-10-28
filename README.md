@@ -1,17 +1,23 @@
 # PrintedCrafts LEDSign Studio
 
-A browser-based LED neon sign builder focused on **single centerline paths** and printable U-channel parts.
+A browser-based LED neon sign builder focused on centreline lettering and printable U-channel geometry.
 
-## Basic workflow
-1. Enter a phrase such as `NEON SIGN`. The built-in PrintedCrafts alphabet is authored as single-line LED strokes for an immediate preview.
-2. To use another font, upload a TTF or OTF file. The browser renders the lettering to a raster mask, thins the glyph strokes with Zhang–Suen skeletonization, and traces the skeleton into centerline polylines.
-3. Review the preview, change the target width and channel profile, and correct tricky joins in manual centerline mode if needed.
-4. Choose a printer-bed preset, generate the STL parts, and download the ZIP.
-5. Inspect each STL in a slicer before printing. Check channel opening against the real LED flex, minimum bend radius, wall thickness, manifoldness, support fit, and wiring clearance.
+## Workflow
+1. Enter text such as `NEON SIGN`. The built-in alphabet is authored as single-line LED strokes.
+2. Upload a TTF/OTF font to rasterize the glyphs and automatically trace the thinned medial skeleton. Review the centreline preview; branching letters and decorative fonts may need manual correction.
+3. Adjust global letter spacing and one character pair, then set target width and LED channel profile.
+4. Enable **Integrate channel and backplane flange** to generate one swept STL cross-section in which the channel floor/walls and backing flange are connected. Select optional mounting accessories: keyway hanger tabs, hanging eyelets, or wall standoffs.
+5. Select the printer bed, generate parts, and download the ZIP. The ZIP includes `README-PRINTING.txt`, `ASSEMBLY-GUIDE.svg`, and `CHANNEL-CROSS-SECTION.svg`.
+6. Arrange tile parts by the assembly map, dry-fit, attach mounts, check LED fit and inspect every STL in a slicer before printing.
 
-## Important limitations
-Raster medial-axis extraction is a heuristic, not a perfect typographic skeleton. Branching glyphs (for example E, F, K, and G), thin/light fonts, serif details, scripts, tiny punctuation, and tight character spacing can produce ambiguous joins or unwanted stubs. Manual corrections may be needed. Not every decorative font is suitable for continuous LED routing, and the software cannot guarantee that every phrase is electrically continuous or mechanically valid.
+## Geometry and smoothing
+The app thins font rasters using Zhang–Suen skeletonization, traces the pixel graph, suppresses redundant diagonal neighbours, simplifies polylines, then uses corner-cutting and distance-based resampling to reduce pixel-scale waves. This does not guarantee a perfect skeleton for every font or resolve every branch junction.
 
-Generated channel parts are experimental: inspect them in your slicer, check dimensions and mesh integrity, verify the strip manufacturer's minimum bend radius, and test with the actual hardware. Rear raceways are separate pieces and are not boolean-cut into supports. Use properly insulated wiring, strain relief, and a suitably rated power supply. This project is a design aid, not electrical certification.
+The integrated backing is a swept flange under each centreline channel; it is not one solid silhouette plate filling all empty spaces between letters. Tile joints are flat butt joints: dovetails, snap locks, diffuser caps, and boolean-cut wire/mount holes are not included.
 
-Font files are processed locally in the browser; the app does not upload them to a server. The page requires a modern browser with Canvas and SVG support. GitHub Pages is supported when `index.html`, `app.js`, and `style.css` are published from the same directory.
+## Mounting and safety
+Mounting accessories are separate STL parts and require physical fit-check and attachment to the backplane. The keyway tab is an open keyway, not a load-rated fastener. Eyelets and standoffs are experimental. Select screws, anchors, adhesives and mounting points based on the actual sign weight, wall/chain and print orientation; no load certification is provided.
+
+Verify actual LED flex dimensions, clearance, minimum bend radius, wall/floor thickness, mesh integrity, tile alignment, heat management, insulated wiring, strain relief and power supply rating. This is experimental fabrication software, not electrical or structural certification.
+
+Font files are processed locally in the browser. GitHub Pages is supported when `index.html`, `app.js` and `style.css` are published from the same directory.

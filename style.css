@@ -6,3 +6,6 @@ input[type=file]{padding:7px;font-size:11px}input[type=checkbox]{accent-color:#b
 .panel>.buttons{margin:10px 0}.panel label{line-height:1.4}button{min-height:35px}#text{font-size:16px;font-weight:700;letter-spacing:.08em}
 #notice,#routeStatus{overflow-wrap:anywhere}#download:disabled{opacity:.4}
 @media(max-width:900px){.designhead{align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr 1fr}.metrics strong{overflow-wrap:anywhere}}
+
+/* Kerning and fabrication controls */
+#letterSpacingO,#pairSpacingO{float:right;color:#b9f2df}#pairStatus{margin-top:4px}#mountStyle{width:100%}#backing{accent-color:#b89df1}
