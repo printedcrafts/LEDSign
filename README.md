@@ -1,6 +1,6 @@
 # PrintedCrafts LEDSign Studio
 
-A browser-based LED neon sign designer with per-character centerline tracing, adjustable kerning, interlocking backplane tiles, mounting accessories, and an assembled 3D preview.
+A browser-based LED neon sign designer with per-character centerline tracing, letter selection/alignment, interlocking backplane tiles, mounting accessories, and an assembled 3D preview.
 
 ## Workflow
 1. Enter text and upload a TTF/OTF font or use the built-in single-line alphabet.
