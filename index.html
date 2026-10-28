@@ -1,1 +1,425 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LEDSign — Neon Fabrication Studio</title><link rel="stylesheet" href="style.css"></head><body><header><div class="mark">✳ LED<span>Sign</span></div><small>NEON FABRICATION STUDIO · STL EDITION</small></header><div class="intro"><div class="eyebrow">DESIGN / PREVIEW / 3D PRINT</div><h1>Make your words <em>glow.</em></h1><p>Design smooth neon-flex channel lettering and export printable channel and contour-support STL models.</p></div><main><aside class="panel"><h2><b>01</b> Sign designer</h2><label>Lettering text<input id="text" value="Concrete" maxlength="28"></label><label>Lettering source<select id="font"><option value="built">Built-in single-stroke lettering</option><option value="custom">Uploaded font (approximate trace)</option></select></label><label>Upload TTF / OTF<input id="fontFile" type="file" accept=".ttf,.otf"></label><p class="hint">Uploaded fonts are used as a faint reference. Trace one centerline per intended LED run; the app no longer exports doubled font outlines as neon channels.</p><div class="buttons"><button type="button" id="manualBegin">Draw LED path</button><button type="button" id="manualFinish">Finish section</button></div><div class="buttons"><button type="button" id="manualUndo">Undo point</button><button type="button" id="manualClear">Clear LED paths</button></div><p class="hint">Upload a font, choose Draw LED path, and click along the middle of each neon stroke. Finish each section, including disconnected accents, separately. The completed paths are used for STL export and rear wiring.</p><div class="twocol"><label>Sign width <output id="widthO"></output><input id="width" type="range" min="100" max="1100" value="450" step="10"></label><label>Preview glow <output id="glowO"></output><input id="glow" type="range" min="0" max="100" value="70"></label></div><hr><h3>LED strip determines channel</h3><label>LED strip profile<select id="led"><option value="neon6">6 mm top-bend neon flex</option><option value="neon8" selected>8 mm top-bend neon flex</option><option value="neon10">10 mm top-bend neon flex</option><option value="cob8">8 mm COB tape (no diffuser)</option></select></label><p class="hint" id="profile"></p><div class="twocol"><label>Fit clearance <output id="clearanceO"></output><input id="clearance" type="range" min="0.2" max="1.5" step="0.1" value="0.5"></label><label>Wall thickness <output id="wallO"></output><input id="wall" type="range" min="1.2" max="4" step="0.1" value="2.2"></label><label>Channel floor <output id="floorO"></output><input id="floor" type="range" min="1.2" max="5" step="0.1" value="2.5"></label><label>Channel height <output id="channelHeightO"></output><input id="channelHeight" type="range" min="5" max="24" step="0.5" value="18"></label></div><hr><h3>Shapes and accents</h3><div class="twocol"><label>Shape<select id="shapeType"><option value="circle">Circle</option><option value="ellipse">Ellipse</option><option value="rectangle">Rectangle</option><option value="line">Line</option><option value="arc">Arc</option></select></label><label>Size (mm)<input id="shapeSize" type="number" value="120" min="15" max="1500"></label></div><div class="buttons"><button id="addShape">Add shape</button><button id="removeShape">Remove selected</button></div><div class="buttons align-buttons"><button data-align="left">Left</button><button data-align="center">Center</button><button data-align="right">Right</button><button data-align="top">Top</button><button data-align="middle">Middle</button><button data-align="bottom">Bottom</button></div><p class="hint">Select a shape, then align it to the lettering. Drag shapes on the preview to move them. Drag the mint handle to resize.</p><hr><h3>Rear wiring routes</h3><p class="hint">Connect interrupted LED strokes. Select <b>Start</b>, click the end of a lit stroke, then select <b>End</b> and click the next stroke. Use <b>Waypoint</b> for a concealed wire detour. Green dashed routes represent the rear face, not illuminated LEDs.</p><div class="buttons"><button id="routeStart" type="button">1 · Start</button><button id="routeEnd" type="button">2 · End</button><button id="routeWaypoint" type="button">+ Waypoint</button></div><div class="buttons"><button id="routeUndo" type="button">Undo point</button><button id="routeDelete" type="button">Delete route</button><button id="routeClear" type="button">Clear routes</button></div><div class="twocol"><label>Wire clearance (mm)<input id="wireWidth" type="number" min="1" max="12" step="0.5" value="3"></label><label>Rear raceway wall (mm)<input id="wireWall" type="number" min="1" max="5" step="0.5" value="1.6"></label><label>Rear raceway depth (mm)<input id="wireDepth" type="number" min="2" max="12" step="0.5" value="4"></label></div><div class="messages" id="routeStatus">Wiring mode: off. Use Start to begin a route.</div><hr><h3>Contour support</h3><label class="check"><input type="checkbox" id="backing" checked> Export contour-following support</label><div class="twocol"><label>Support margin <output id="paddingO"></output><input id="padding" type="range" min="0" max="12" value="3" step="0.5"></label><label>Support thickness <output id="plateO"></output><input id="plate" type="range" min="2" max="10" value="4" step="0.5"></label></div><hr><h3>Printer build volume</h3><label>Printer<select id="printer"><option value="custom">Custom</option><optgroup label="Bambu Lab"><option value="256,256,256">A1 / P1S / X1 Carbon</option><option value="180,180,180">A1 mini</option></optgroup><optgroup label="Prusa"><option value="250,210,220">MK4S</option><option value="250,220,270">CORE One</option><option value="360,360,360">XL</option></optgroup><optgroup label="QIDI"><option value="245,245,240">Q1 Pro</option><option value="305,305,280">Plus4</option></optgroup><optgroup label="FlashForge"><option value="220,220,220">Adventurer 5M</option></optgroup></select></label><div class="twocol"><label>Bed X (mm)<input type="number" id="bedW" value="220" min="50"></label><label>Bed Y (mm)<input type="number" id="bedH" value="220" min="50"></label></div><p class="hint">Oversized lettering is automatically split into print-bed-sized channel/support sections. Cut ends are not mechanically locked.</p></aside><section class="panel design"><div class="designhead"><h2><b>02</b> Neon preview</h2><div class="buttons"><button id="zoomOut">−</button><button id="zoomIn">+</button><button id="fit">Fit</button></div></div><div class="stage"><svg id="preview" viewBox="0 0 900 560" aria-label="Neon path preview" role="img"><defs><filter id="glowfilter" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="5"/></filter></defs><g id="content"></g></svg><div class="corner">Drag shapes · Scroll to zoom · Use wiring tools to add rear cable routes</div></div><div class="metrics"><div><small>TOTAL SIZE · METRIC / IMPERIAL</small><strong id="dimensions">—</strong></div><div><small>PATHS</small><strong id="pathcount">—</strong></div><div><small>BUILD PLATE</small><strong id="bedstate">—</strong></div></div><div class="messages" id="notice" role="status">Initializing preview…</div><div class="export"><button class="primary" id="generate">Generate printable STLs</button><button id="download" disabled>Download STL ZIP</button></div><p class="hint">Exports are individual watertight swept channel pieces and corresponding support pieces in millimeters. Overlapping paths are not boolean-unioned. Test in a slicer before printing. No SVG layouts or rectangular tile exports.</p></section></main><footer>LEDSign · Parametric neon-flex channels · Printable geometry requires slicer inspection</footer><script src="app.js?v=20261027-centerline-editor1" defer></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEDSign — 3D Printable LED Neon Sign Generator</title>
+    <style>
+        :root {
+            --bg-color: #0f1117;
+            --panel-bg: #181b24;
+            --border-color: #2a2e3d;
+            --accent-color: #00f2fe;
+            --accent-gradient: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            --text-main: #f0f2f5;
+            --text-muted: #8c94a6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-main); overflow: hidden; }
+
+        /* Sidebar Control Panel */
+        #sidebar {
+            width: 380px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+        }
+
+        .header { padding: 20px; border-bottom: 1px solid var(--border-color); }
+        .header h1 { font-size: 1.3rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+        .controls-container { flex: 1; overflow-y: auto; padding: 20px; }
+        
+        .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-color); margin: 20px 0 10px 0; font-weight: 700; }
+        .section-title:first-child { margin-top: 0; }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.82rem; color: var(--text-main); margin-bottom: 6px; font-weight: 500; }
+        .form-group label span { float: right; color: var(--text-muted); font-weight: normal; }
+
+        input[type="text"], select {
+            width: 100%; padding: 10px 12px; background: var(--bg-color); border: 1px solid var(--border-color);
+            border-radius: 6px; color: #fff; font-size: 0.9rem; transition: border 0.2s;
+        }
+        input[type="text"]:focus, select:focus { border-color: var(--accent-color); outline: none; }
+
+        input[type="range"] {
+            width: 100%; -webkit-appearance: none; background: var(--bg-color); height: 6px; border-radius: 3px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent-color); cursor: pointer;
+        }
+
+        .checkbox-group { display: flex; align-items: center; justify-content: space-between; }
+        .checkbox-group input { width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer; }
+
+        .color-picker-group { display: flex; gap: 10px; align-items: center; }
+        .color-picker-group input[type="color"] { -webkit-appearance: none; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; background: transparent; }
+        .color-picker-group input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker-group input[type="color"]::-webkit-color-swatch { border: 2px solid var(--border-color); border-radius: 50%; }
+
+        /* Action Buttons */
+        .actions { padding: 20px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
+        .btn {
+            width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem;
+            cursor: pointer; transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; gap: 8px;
+        }
+        .btn-primary { background: var(--accent-gradient); color: #fff; box-shadow: 0 4px 15px rgba(0,198,255,0.3); }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-secondary { background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--border-color); }
+
+        /* 3D Viewport */
+        #viewport { flex: 1; position: relative; background: radial-gradient(circle at center, #1e2230 0%, #0a0b0e 100%); }
+        #canvas-container { width: 100%; height: 100%; }
+
+        /* Overlay Info */
+        .viewport-overlay {
+            position: absolute; bottom: 20px; right: 20px; background: rgba(24, 27, 36, 0.85);
+            backdrop-filter: blur(8px); padding: 12px 18px; border-radius: 8px; border: 1px solid var(--border-color);
+            font-size: 0.8rem; color: var(--text-muted); pointer-events: none;
+        }
+        .viewport-overlay strong { color: var(--text-main); }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="header">
+            <h1>LEDSign Studio</h1>
+            <p>Convert text to 3D-printable LED neon channels</p>
+        </div>
+
+        <div class="controls-container">
+            <div class="section-title">Sign Text & Typography</div>
+            <div class="form-group">
+                <label for="text-input">Text</label>
+                <input type="text" id="text-input" value="NEON" placeholder="Type sign text...">
+            </div>
+            <div class="form-group">
+                <label for="font-family">Font Style</label>
+                <select id="font-family">
+                    <option value="helvetiker">Modern Sans (Helvetiker)</option>
+                    <option value="optimer">Tech Clean (Optimer)</option>
+                    <option value="gentilis">Bold Classic (Gentilis)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="sign-height">Font Height <span id="val-sign-height">80mm</span></label>
+                <input type="range" id="sign-height" min="40" max="250" value="80">
+            </div>
+
+            <div class="section-title">LED Channel Parameters</div>
+            <div class="form-group">
+                <label for="channel-width">Neon Strip Profile <span id="val-channel-width">8mm (Standard)</span></label>
+                <select id="channel-width">
+                    <option value="6">6mm LED Neon Flex</option>
+                    <option value="8" selected>8mm LED Neon Flex</option>
+                    <option value="10">10mm LED Neon Flex</option>
+                    <option value="12">12mm Heavy Neon Flex</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="channel-depth">Channel Wall Depth <span id="val-channel-depth">12mm</span></label>
+                <input type="range" id="channel-depth" min="6" max="25" value="12">
+            </div>
+            <div class="form-group">
+                <label for="wall-thickness">Outer Wall Thickness <span id="val-wall-thickness">2.0mm</span></label>
+                <input type="range" id="wall-thickness" min="1.2" max="4.0" step="0.2" value="2.0">
+            </div>
+            <div class="form-group checkbox-group">
+                <label for="retention-lip">Diffuser Retention Ledge</label>
+                <input type="checkbox" id="retention-lip" checked>
+            </div>
+
+            <div class="section-title">Backing Plate & Wiring</div>
+            <div class="form-group checkbox-group">
+                <label for="enable-backplate">Generate Backing Plate</label>
+                <input type="checkbox" id="enable-backplate" checked>
+            </div>
+            <div class="form-group">
+                <label for="backplate-offset">Backplate Margin Offset <span id="val-backplate-offset">10mm</span></label>
+                <input type="range" id="backplate-offset" min="4" max="30" value="10">
+            </div>
+            <div class="form-group">
+                <label for="backplate-thickness">Backplate Thickness <span id="val-backplate-thickness">3mm</span></label>
+                <input type="range" id="backplate-thickness" min="1.5" max="8" step="0.5" value="3">
+            </div>
+            <div class="form-group checkbox-group">
+                <label for="wire-holes">Wire Passthrough Holes</label>
+                <input type="checkbox" id="wire-holes" checked>
+            </div>
+
+            <div class="section-title">Visual Preview</div>
+            <div class="form-group">
+                <label>LED Tube Glow Color</label>
+                <div class="color-picker-group">
+                    <input type="color" id="neon-color" value="#00f2fe">
+                    <span id="color-hex" style="font-size: 0.85rem; color: var(--text-muted);">#00f2fe</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" id="export-stl-channels">Export LED Channels (.STL)</button>
+            <button class="btn btn-secondary" id="export-stl-backplate">Export Backplate (.STL)</button>
+        </div>
+    </div>
+
+    <div id="viewport">
+        <div id="canvas-container"></div>
+        <div class="viewport-overlay">
+            <div><strong>Drag:</strong> Rotate View | <strong>Scroll:</strong> Zoom | <strong>Right-Click:</strong> Pan</div>
+        </div>
+    </div>
+
+    <!-- Three.js Library & Add-ons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+
+    <script>
+        // --- APP STATE & ENGINE ---
+        let scene, camera, renderer, controls;
+        let fontLoader, currentFont;
+        let channelMeshGroup, backplateMesh, neonGlowMeshGroup;
+
+        const fonts = {
+            helvetiker: 'https://threejs.org/examples/fonts/helvetiker_bold.typeface.json',
+            optimer: 'https://threejs.org/examples/fonts/optimer_bold.typeface.json',
+            gentilis: 'https://threejs.org/examples/fonts/gentilis_bold.typeface.json'
+        };
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+            
+            // Three.js Scene Setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 2000);
+            camera.position.set(0, -150, 250);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Lighting Setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight1.position.set(100, 200, 150);
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0x00c6ff, 0.3);
+            dirLight2.position.set(-100, -100, -50);
+            scene.add(dirLight2);
+
+            // Container Groups
+            channelMeshGroup = new THREE.Group();
+            neonGlowMeshGroup = new THREE.Group();
+            scene.add(channelMeshGroup);
+            scene.add(neonGlowMeshGroup);
+
+            // Load Font and Initial Mesh Build
+            fontLoader = new THREE.FontLoader();
+            loadFont(fonts.helvetiker);
+
+            // Event Listeners
+            setupEventListeners();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function loadFont(url) {
+            fontLoader.load(url, (font) => {
+                currentFont = font;
+                rebuildSign();
+            });
+        }
+
+        function rebuildSign() {
+            if (!currentFont) return;
+
+            // Clear previous meshes
+            while(channelMeshGroup.children.length > 0) channelMeshGroup.remove(channelMeshGroup.children[0]);
+            while(neonGlowMeshGroup.children.length > 0) neonGlowMeshGroup.remove(neonGlowMeshGroup.children[0]);
+            if (backplateMesh) scene.remove(backplateMesh);
+
+            // Fetch DOM Parameters
+            const text = document.getElementById('text-input').value || "NEON";
+            const textSize = parseFloat(document.getElementById('sign-height').value);
+            const channelWidth = parseFloat(document.getElementById('channel-width').value);
+            const channelDepth = parseFloat(document.getElementById('channel-depth').value);
+            const wallThick = parseFloat(document.getElementById('wall-thickness').value);
+            const hasRetentionLip = document.getElementById('retention-lip').checked;
+            const hasBackplate = document.getElementById('enable-backplate').checked;
+            const backplateOffset = parseFloat(document.getElementById('backplate-offset').value);
+            const backplateThickness = parseFloat(document.getElementById('backplate-thickness').value);
+            const hasWireHoles = document.getElementById('wire-holes').checked;
+            const glowColor = document.getElementById('neon-color').value;
+
+            // 1. Generate Letter Shapes from Font
+            const shapes = currentFont.generateShapes(text, textSize);
+            
+            // Material Definitions
+            const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x222531, roughness: 0.4, metalness: 0.1 });
+            const glowMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(glowColor),
+                emissive: new THREE.Color(glowColor),
+                emissiveIntensity: 0.8,
+                roughness: 0.2
+            });
+            const backplateMaterial = new THREE.MeshStandardMaterial({ color: 0x111319, roughness: 0.6, metalness: 0.1 });
+
+            // Calculate Bounding Box to Center Model
+            const geometryTemp = new THREE.ShapeGeometry(shapes);
+            geometryTemp.computeBoundingBox();
+            const xOffset = - (geometryTemp.boundingBox.max.x - geometryTemp.boundingBox.min.x) / 2;
+            const yOffset = - (geometryTemp.boundingBox.max.y - geometryTemp.boundingBox.min.y) / 2;
+
+            // 2. Build Channel Shells & Diffuser Tubes per Shape
+            shapes.forEach((shape) => {
+                // Outer Channel Wall Geometry
+                const extrudeSettingsOuter = { depth: channelDepth, bevelEnabled: false };
+                const outerGeo = new THREE.ExtrudeGeometry(shape, extrudeSettingsOuter);
+                outerGeo.translate(xOffset, yOffset, 0);
+
+                const outerMesh = new THREE.Mesh(outerGeo, wallMaterial);
+                channelMeshGroup.add(outerMesh);
+
+                // Simulate Inner Cavity Track
+                const innerGlowGeo = new THREE.ExtrudeGeometry(shape, { depth: channelDepth - 1.5, bevelEnabled: false });
+                innerGlowGeo.translate(xOffset, yOffset, 1.5);
+                const innerGlowMesh = new THREE.Mesh(innerGlowGeo, glowMaterial);
+                neonGlowMeshGroup.add(innerGlowMesh);
+
+                // Add Diffuser Retention Ledge Mesh (if checked)
+                if (hasRetentionLip) {
+                    const lipGeo = new THREE.ExtrudeGeometry(shape, { depth: 1.2, bevelEnabled: false });
+                    lipGeo.translate(xOffset, yOffset, channelDepth - 1.2);
+                    const lipMesh = new THREE.Mesh(lipGeo, wallMaterial);
+                    channelMeshGroup.add(lipMesh);
+                }
+
+                // Add Cable Routing Holes (Visual Representation)
+                if (hasWireHoles) {
+                    const holeGeo = new THREE.CylinderGeometry(2.5, 2.5, 10, 16);
+                    holeGeo.rotateX(Math.PI / 2);
+                    const center = new THREE.Vector3();
+                    shape.getPoints().reduce((acc, p) => acc.add(p), center).divideScalar(shape.getPoints().length);
+                    holeGeo.translate(center.x + xOffset, center.y + yOffset, 0);
+                    const holeMesh = new THREE.Mesh(holeGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                    channelMeshGroup.add(holeMesh);
+                }
+            });
+
+            // 3. Build Backing Plate
+            if (hasBackplate && geometryTemp.boundingBox) {
+                const box = geometryTemp.boundingBox;
+                const width = (box.max.x - box.min.x) + (backplateOffset * 2);
+                const height = (box.max.y - box.min.y) + (backplateOffset * 2);
+                
+                const backShape = new THREE.Shape();
+                const radius = 10; // Rounded corners
+                
+                const x = -width / 2;
+                const y = -height / 2;
+
+                backShape.moveTo(x, y + radius);
+                backShape.lineTo(x, y + height - radius);
+                backShape.quadraticCurveTo(x, y + height, x + radius, y + height);
+                backShape.lineTo(x + width - radius, y + height);
+                backShape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+                backShape.lineTo(x + width, y + radius);
+                backShape.quadraticCurveTo(x + width, y, x + width - radius, y);
+                backShape.lineTo(x + radius, y);
+                backShape.quadraticCurveTo(x, y, x, y + radius);
+
+                const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: backplateThickness, bevelEnabled: false });
+                backplateMesh = new THREE.Mesh(backGeo, backplateMaterial);
+                backplateMesh.position.set(0, 0, -backplateThickness);
+                scene.add(backplateMesh);
+            }
+        }
+
+        // --- EXPORT FUNCTIONS ---
+        function exportSTL(group, filename) {
+            if (!group || (group.isGroup && group.children.length === 0)) {
+                alert("No geometry available to export.");
+                return;
+            }
+            const exporter = new THREE.STLExporter();
+            const result = exporter.parse(group, { binary: true });
+            const blob = new Blob([result], { type: 'application/octet-stream' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        // --- EVENT LISTENERS & UI UPDATE ---
+        function setupEventListeners() {
+            // Inputs triggering live model rebuilds
+            const inputs = ['text-input', 'sign-height', 'channel-width', 'channel-depth', 'wall-thickness', 'retention-lip', 'enable-backplate', 'backplate-offset', 'backplate-thickness', 'wire-holes', 'neon-color'];
+            inputs.forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    updateLabels();
+                    rebuildSign();
+                });
+            });
+
+            document.getElementById('font-family').addEventListener('change', (e) => {
+                loadFont(fonts[e.target.value]);
+            });
+
+            document.getElementById('export-stl-channels').addEventListener('click', () => {
+                exportSTL(channelMeshGroup, 'LED_Neon_Channels.stl');
+            });
+
+            document.getElementById('export-stl-backplate').addEventListener('click', () => {
+                exportSTL(backplateMesh, 'LED_Neon_Backplate.stl');
+            });
+        }
+
+        function updateLabels() {
+            document.getElementById('val-sign-height').innerText = document.getElementById('sign-height').value + 'mm';
+            document.getElementById('val-channel-depth').innerText = document.getElementById('channel-depth').value + 'mm';
+            document.getElementById('val-wall-thickness').innerText = parseFloat(document.getElementById('wall-thickness').value).toFixed(1) + 'mm';
+            document.getElementById('val-backplate-offset').innerText = document.getElementById('backplate-offset').value + 'mm';
+            document.getElementById('val-backplate-thickness').innerText = document.getElementById('backplate-thickness').value + 'mm';
+            
+            const selectedWidth = document.getElementById('channel-width').value;
+            document.getElementById('val-channel-width').innerText = selectedWidth + 'mm Profile';
+            document.getElementById('color-hex').innerText = document.getElementById('neon-color').value;
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
