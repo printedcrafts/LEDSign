@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LEDSign Studio — Pro LED Neon Sign Generator</title>
+    <title>LEDSign Studio v4.0 — True Neon Path Generator</title>
     <style>
         :root {
             --bg-color: #0b0d12;
@@ -20,7 +20,7 @@
 
         /* Sidebar Control Panel */
         #sidebar {
-            width: 420px;
+            width: 440px;
             background-color: var(--panel-bg);
             border-right: 1px solid var(--border-color);
             display: flex;
@@ -29,24 +29,47 @@
             box-shadow: 4px 0 25px rgba(0,0,0,0.6);
         }
 
-        .header { padding: 20px; border-bottom: 1px solid var(--border-color); }
-        .header h1 { font-size: 1.3rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .header p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+        .header { padding: 18px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.25rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header p { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* Unit Switcher Button Group */
+        .unit-toggle {
+            display: flex;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .unit-btn {
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .unit-btn.active {
+            background: var(--accent-color);
+            color: #000;
+        }
 
         .controls-container { flex: 1; overflow-y: auto; padding: 20px; }
         
-        .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-color); margin: 20px 0 10px 0; font-weight: 700; }
+        .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-color); margin: 18px 0 10px 0; font-weight: 700; }
         .section-title:first-child { margin-top: 0; }
 
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-size: 0.82rem; color: var(--text-main); margin-bottom: 6px; font-weight: 500; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 0.82rem; color: var(--text-main); margin-bottom: 5px; font-weight: 500; }
         .form-group label span { float: right; color: var(--text-muted); font-weight: normal; }
 
-        textarea, select {
-            width: 100%; padding: 10px 12px; background: var(--bg-color); border: 1px solid var(--border-color);
-            border-radius: 6px; color: #fff; font-size: 0.9rem; transition: border 0.2s; resize: vertical;
+        textarea, select, input[type="text"] {
+            width: 100%; padding: 9px 11px; background: var(--bg-color); border: 1px solid var(--border-color);
+            border-radius: 6px; color: #fff; font-size: 0.88rem; transition: border 0.2s; resize: vertical;
         }
-        textarea:focus, select:focus { border-color: var(--accent-color); outline: none; }
+        textarea:focus, select:focus, input[type="text"]:focus { border-color: var(--accent-color); outline: none; }
 
         input[type="range"] {
             width: 100%; -webkit-appearance: none; background: var(--bg-color); height: 6px; border-radius: 3px; outline: none;
@@ -59,17 +82,17 @@
         .checkbox-group input { width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer; }
 
         .color-picker-group { display: flex; gap: 10px; align-items: center; }
-        .color-picker-group input[type="color"] { -webkit-appearance: none; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; background: transparent; }
+        .color-picker-group input[type="color"] { -webkit-appearance: none; border: none; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; background: transparent; }
         .color-picker-group input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
         .color-picker-group input[type="color"]::-webkit-color-swatch { border: 2px solid var(--border-color); border-radius: 50%; }
 
         /* Action Buttons */
-        .actions { padding: 20px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
+        .actions { padding: 18px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; }
         .btn {
-            width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem;
-            cursor: pointer; transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; gap: 8px;
+            flex: 1; padding: 11px; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem;
+            cursor: pointer; transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; gap: 6px;
         }
-        .btn-primary { background: var(--accent-gradient); color: #fff; box-shadow: 0 4px 15px rgba(0,198,255,0.3); }
+        .btn-primary { background: var(--accent-gradient); color: #fff; box-shadow: 0 4px 15px rgba(0,198,255,0.25); }
         .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-secondary { background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border-color); }
         .btn-secondary:hover { background: var(--border-color); }
@@ -81,8 +104,8 @@
         /* Overlay Info */
         .viewport-overlay {
             position: absolute; bottom: 20px; right: 20px; background: rgba(20, 23, 32, 0.85);
-            backdrop-filter: blur(8px); padding: 12px 18px; border-radius: 8px; border: 1px solid var(--border-color);
-            font-size: 0.8rem; color: var(--text-muted); pointer-events: none;
+            backdrop-filter: blur(8px); padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border-color);
+            font-size: 0.78rem; color: var(--text-muted); pointer-events: none;
         }
         .viewport-overlay strong { color: var(--text-main); }
     </style>
@@ -91,92 +114,112 @@
 
     <div id="sidebar">
         <div class="header">
-            <h1>LEDSign Studio</h1>
-            <p>Pro LED Neon Sign & Channel Letter Generator</p>
+            <div>
+                <h1>LEDSign Studio</h1>
+                <p>True Neon Path Geometry Generator</p>
+            </div>
+            <div class="unit-toggle">
+                <button class="unit-btn active" id="unit-mm" onclick="setUnits('mm')">mm</button>
+                <button class="unit-btn" id="unit-in" onclick="setUnits('in')">in</button>
+            </div>
         </div>
 
         <div class="controls-container">
-            <div class="section-title">Sign Text & Typography</div>
+            <div class="section-title">Sign Dimensions & Outline</div>
             <div class="form-group">
-                <label for="text-input">Sign Text (Multi-Line Supported)</label>
-                <textarea id="text-input" rows="2">GOOD
-VIBES</textarea>
+                <label for="sign-width">Overall Width <span id="val-sign-width">400 mm</span></label>
+                <input type="range" id="sign-width" min="150" max="1200" value="400">
             </div>
             <div class="form-group">
-                <label for="font-family">Font Style</label>
+                <label for="base-shape">Backplate Shape Style</label>
+                <select id="base-shape">
+                    <option value="contour">Contour / Cut to Letter Outline</option>
+                    <option value="rounded">Rounded Box</option>
+                    <option value="ellipse">Circle / Oval</option>
+                    <option value="shield">Badge / Shield</option>
+                </select>
+            </div>
+
+            <div class="section-title">Text & Neon Fonts</div>
+            <div class="form-group">
+                <label for="text-input">Sign Text (Multi-Line)</label>
+                <textarea id="text-input" rows="2">Neon
+Sign</textarea>
+            </div>
+            <div class="form-group">
+                <label for="font-family">Neon Sign Font Style</label>
                 <select id="font-family">
-                    <option value="helvetiker">Modern Sans (Helvetiker Bold)</option>
-                    <option value="optimer">Tech Clean (Optimer Bold)</option>
-                    <option value="gentilis">Bold Classic (Gentilis Bold)</option>
+                    <optgroup label="Neon Script / Cursive">
+                        <option value="pacifico" selected>Pacifico (Smooth Flowing Cursive)</option>
+                        <option value="caveat">Caveat (Handwritten Neon)</option>
+                        <option value="greatvibes">Great Vibes (Elegant Script)</option>
+                    </optgroup>
+                    <optgroup label="Modern & Sans-Serif">
+                        <option value="helvetiker">Helvetiker Bold</option>
+                        <option value="optimer">Optimer Bold</option>
+                        <option value="monoton">Monoton (Multi-Line Retro Neon)</option>
+                    </optgroup>
                 </select>
             </div>
             <div class="form-group">
-                <label for="sign-height">Scale / Height <span id="val-sign-height">70mm</span></label>
-                <input type="range" id="sign-height" min="40" max="200" value="70">
+                <label for="line-height">Line Height <span id="val-line-height">1.2x</span></label>
+                <input type="range" id="line-height" min="0.8" max="2.0" step="0.1" value="1.2">
             </div>
 
             <div class="section-title">3D Printer & Bed Sizing</div>
             <div class="form-group">
-                <label for="printer-preset">Printer Build Volume</label>
+                <label for="printer-preset">3D Printer Bed Preset</label>
                 <select id="printer-preset">
                     <option value="256,256">Bambu Lab X1 / P1S (256 × 256 mm)</option>
                     <option value="220,220" selected>Ender 3 / Prusa MK4 (220 × 220 mm)</option>
-                    <option value="300,300">Creality K1 Max / CR-10 (300 × 300 mm)</option>
+                    <option value="300,300">Creality K1 Max (300 × 300 mm)</option>
                     <option value="180,180">Prusa MINI (180 × 180 mm)</option>
                 </select>
             </div>
             <div class="form-group checkbox-group">
-                <label for="auto-split">Auto-Split Objects to Fit Bed</label>
+                <label for="auto-split">Auto-Split for Printer Bed</label>
                 <input type="checkbox" id="auto-split" checked>
             </div>
 
-            <div class="section-title">LED Neon Channel Parameters</div>
+            <div class="section-title">LED Channel Sizing</div>
             <div class="form-group">
-                <label for="channel-width">Neon Strip Profile <span id="val-channel-width">8mm Silicone LED</span></label>
+                <label for="channel-width">LED Neon Flex Size <span id="val-channel-width">8 mm Profile</span></label>
                 <select id="channel-width">
-                    <option value="6">6mm Slim Neon Flex</option>
-                    <option value="8" selected>8mm Standard Neon Flex</option>
-                    <option value="10">10mm Heavy Neon Flex</option>
+                    <option value="6">6mm Slim LED Neon Flex</option>
+                    <option value="8" selected>8mm Standard LED Neon Flex</option>
+                    <option value="10">10mm Heavy LED Neon Flex</option>
                 </select>
             </div>
             <div class="form-group">
-                <label for="channel-depth">Channel Wall Depth <span id="val-channel-depth">14mm</span></label>
-                <input type="range" id="channel-depth" min="8" max="24" value="14">
+                <label for="channel-depth">Channel Wall Depth <span id="val-channel-depth">12 mm</span></label>
+                <input type="range" id="channel-depth" min="6" max="22" value="12">
             </div>
             <div class="form-group">
-                <label for="wall-thickness">Chassis Wall Thickness <span id="val-wall-thickness">2.0mm</span></label>
+                <label for="wall-thickness">Wall Thickness <span id="val-wall-thickness">2.0 mm</span></label>
                 <input type="range" id="wall-thickness" min="1.2" max="3.5" step="0.2" value="2.0">
-            </div>
-            <div class="form-group checkbox-group">
-                <label for="retention-lip">Silicone Diffuser Retention Lip</label>
-                <input type="checkbox" id="retention-lip" checked>
             </div>
 
             <div class="section-title">Backing Plate & Wire Routing</div>
             <div class="form-group checkbox-group">
-                <label for="enable-backplate">Generate Contour Backplate</label>
+                <label for="enable-backplate">Generate Backing Plate</label>
                 <input type="checkbox" id="enable-backplate" checked>
             </div>
             <div class="form-group">
-                <label for="backplate-offset">Backplate Margin Offset <span id="val-backplate-offset">12mm</span></label>
-                <input type="range" id="backplate-offset" min="6" max="35" value="12">
-            </div>
-            <div class="form-group">
-                <label for="backplate-thickness">Backplate Thickness <span id="val-backplate-thickness">3.5mm</span></label>
-                <input type="range" id="backplate-thickness" min="2" max="6" step="0.5" value="3.5">
+                <label for="backplate-offset">Backplate Margin <span id="val-backplate-offset">12 mm</span></label>
+                <input type="range" id="backplate-offset" min="4" max="30" value="12">
             </div>
             <div class="form-group checkbox-group">
-                <label for="dovetail-joints">Backplate Dovetail Connectors</label>
+                <label for="dovetail-joints">Interlocking Dovetail Splitting</label>
                 <input type="checkbox" id="dovetail-joints" checked>
             </div>
             <div class="form-group checkbox-group">
-                <label for="wire-tunnels">Rear Jumper Wire Tunnels</label>
-                <input type="checkbox" id="wire-tunnels" checked>
+                <label for="wire-holes">Rear Wire Passthrough Holes</label>
+                <input type="checkbox" id="wire-holes" checked>
             </div>
 
-            <div class="section-title">Neon Simulation</div>
+            <div class="section-title">Neon Glow Color</div>
             <div class="form-group">
-                <label>Silicone Tube Diffuser Color</label>
+                <label>Diffuser Tube Color</label>
                 <div class="color-picker-group">
                     <input type="color" id="neon-color" value="#00f2fe">
                     <span id="color-hex" style="font-size: 0.85rem; color: var(--text-muted);">#00f2fe</span>
@@ -185,25 +228,28 @@ VIBES</textarea>
         </div>
 
         <div class="actions">
-            <button class="btn btn-primary" id="export-stl-channels">Export LED Channels (.STL)</button>
-            <button class="btn btn-secondary" id="export-stl-backplate">Export Backplate Parts (.STL)</button>
+            <button class="btn btn-primary" id="export-stl-channels">Export Channels (.STL)</button>
+            <button class="btn btn-secondary" id="export-stl-backplate">Export Backplate (.STL)</button>
         </div>
     </div>
 
     <div id="viewport">
         <div id="canvas-container"></div>
         <div class="viewport-overlay">
-            <div><strong>Rotate:</strong> Left Click + Drag | <strong>Zoom:</strong> Scroll | <strong>Pan:</strong> Right Click + Drag</div>
+            <div><strong>Rotate:</strong> Drag | <strong>Zoom:</strong> Scroll | <strong>Pan:</strong> Right Drag</div>
         </div>
     </div>
 
-    <!-- Three.js Library & Add-ons -->
+    <!-- Three.js Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
 
     <script>
+        let currentUnit = 'mm'; // 'mm' or 'in'
+        const INCH_CONV = 25.4;
+
         let scene, camera, renderer, controls;
         let fontLoader, currentFont;
         let channelMeshGroup, backplateMeshGroup, neonGlowMeshGroup;
@@ -211,7 +257,8 @@ VIBES</textarea>
         const fonts = {
             helvetiker: 'https://threejs.org/examples/fonts/helvetiker_bold.typeface.json',
             optimer: 'https://threejs.org/examples/fonts/optimer_bold.typeface.json',
-            gentilis: 'https://threejs.org/examples/fonts/gentilis_bold.typeface.json'
+            gentilis: 'https://threejs.org/examples/fonts/gentilis_bold.typeface.json',
+            pacifico: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json' // Fallback vector mapping
         };
 
         init();
@@ -222,7 +269,7 @@ VIBES</textarea>
             
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 3000);
-            camera.position.set(0, -180, 280);
+            camera.position.set(0, -180, 260);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
@@ -235,16 +282,10 @@ VIBES</textarea>
             controls.dampingFactor = 0.05;
 
             // Lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(ambientLight);
-
-            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight1.position.set(150, 250, 200);
-            scene.add(dirLight1);
-
-            const dirLight2 = new THREE.DirectionalLight(0x00c6ff, 0.4);
-            dirLight2.position.set(-150, -150, -100);
-            scene.add(dirLight2);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(100, 200, 150);
+            scene.add(dirLight);
 
             channelMeshGroup = new THREE.Group();
             neonGlowMeshGroup = new THREE.Group();
@@ -261,6 +302,14 @@ VIBES</textarea>
             window.addEventListener('resize', onWindowResize);
         }
 
+        function setUnits(unit) {
+            currentUnit = unit;
+            document.getElementById('unit-mm').classList.toggle('active', unit === 'mm');
+            document.getElementById('unit-in').classList.toggle('active', unit === 'in');
+            updateLabels();
+            rebuildSign();
+        }
+
         function loadFont(url) {
             fontLoader.load(url, (font) => {
                 currentFont = font;
@@ -275,208 +324,112 @@ VIBES</textarea>
             while(neonGlowMeshGroup.children.length > 0) neonGlowMeshGroup.remove(neonGlowMeshGroup.children[0]);
             while(backplateMeshGroup.children.length > 0) backplateMeshGroup.remove(backplateMeshGroup.children[0]);
 
-            // Parameters
+            // Get parameters in mm
+            const rawWidth = parseFloat(document.getElementById('sign-width').value);
+            const targetWidth = currentUnit === 'in' ? rawWidth * INCH_CONV : rawWidth;
             const textLines = (document.getElementById('text-input').value || "NEON").split('\n');
-            const textSize = parseFloat(document.getElementById('sign-height').value);
             const channelDepth = parseFloat(document.getElementById('channel-depth').value);
             const wallThick = parseFloat(document.getElementById('wall-thickness').value);
-            const hasRetentionLip = document.getElementById('retention-lip').checked;
+            const channelWidth = parseFloat(document.getElementById('channel-width').value);
             const hasBackplate = document.getElementById('enable-backplate').checked;
             const backplateOffset = parseFloat(document.getElementById('backplate-offset').value);
-            const backplateThickness = parseFloat(document.getElementById('backplate-thickness').value);
-            const hasDovetails = document.getElementById('dovetail-joints').checked;
-            const hasWireTunnels = document.getElementById('wire-tunnels').checked;
             const glowColor = document.getElementById('neon-color').value;
-            const printerDim = document.getElementById('printer-preset').value.split(',').map(Number);
-            const bedWidth = printerDim[0];
-            const autoSplit = document.getElementById('auto-split').checked;
 
-            // Materials
-            const chassisMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1e29, roughness: 0.5, metalness: 0.1 });
+            // Compute Font Scaling based on target sign width
+            const approxTextScale = targetWidth / 6;
+            let allShapes = [];
+
+            textLines.forEach((lineText, lineIdx) => {
+                if (!lineText.trim()) return;
+                const shapes = currentFont.generateShapes(lineText, approxTextScale);
+                shapes.forEach(shape => allShapes.push(shape));
+            });
+
+            if (allShapes.length === 0) return;
+
+            const tempGeo = new THREE.ShapeGeometry(allShapes);
+            tempGeo.computeBoundingBox();
+            const bbox = tempGeo.boundingBox;
+            const currentW = bbox.max.x - bbox.min.x;
+            const scaleFactor = targetWidth / (currentW || 1);
+
+            const chassisMaterial = new THREE.MeshStandardMaterial({ color: 0x161922, roughness: 0.4 });
             const glowMaterial = new THREE.MeshStandardMaterial({
                 color: new THREE.Color(glowColor),
                 emissive: new THREE.Color(glowColor),
                 emissiveIntensity: 1.2,
-                roughness: 0.1,
-                transparent: true,
-                opacity: 0.95
-            });
-            const backplateMaterial = new THREE.MeshStandardMaterial({ color: 0x11131a, roughness: 0.6 });
-
-            let lineSpacing = textSize * 1.25;
-            let totalHeight = textLines.length * lineSpacing;
-
-            let allShapes = [];
-            textLines.forEach((lineText, lineIdx) => {
-                if (!lineText.trim()) return;
-                const shapes = currentFont.generateShapes(lineText, textSize);
-                const yOffsetShift = (textLines.length * lineSpacing / 2) - (lineIdx * lineSpacing) - (textSize / 2);
-                
-                shapes.forEach(shape => {
-                    // Shift shape points vertically for multi-line support
-                    shape.curves.forEach(curve => {
-                        if (curve.v1) curve.v1.y += yOffsetShift;
-                        if (curve.v2) curve.v2.y += yOffsetShift;
-                        if (curve.v3) curve.v3.y += yOffsetShift;
-                    });
-                    allShapes.push(shape);
-                });
+                roughness: 0.1
             });
 
-            // Center calculation
-            const geometryTemp = new THREE.ShapeGeometry(allShapes);
-            geometryTemp.computeBoundingBox();
-            const bbox = geometryTemp.boundingBox;
-            const xCenterOffset = - (bbox.max.x + bbox.min.x) / 2;
-            const yCenterOffset = - (bbox.max.y + bbox.min.y) / 2;
-
-            // Build Channels and Neon Silicone Diffuser Tubes
+            // True Tubular Neon Path Generation
             allShapes.forEach((shape) => {
-                // Outer Channel Chassis
-                const outerGeo = new THREE.ExtrudeGeometry(shape, { depth: channelDepth, bevelEnabled: false });
-                outerGeo.translate(xCenterOffset, yCenterOffset, 0);
-                const outerMesh = new THREE.Mesh(outerGeo, chassisMaterial);
+                const points = shape.getPoints();
+                if (points.length < 2) return;
+
+                const curvePoints = points.map(p => new THREE.Vector3((p.x - (bbox.max.x + bbox.min.x)/2) * scaleFactor, (p.y - (bbox.max.y + bbox.min.y)/2) * scaleFactor, 0));
+                const curve = new THREE.CatmullRomCurve3(curvePoints);
+
+                // Outer Structural Channel Chassis
+                const outerTubeGeo = new THREE.TubeGeometry(curve, 64, (channelWidth / 2) + wallThick, 12, false);
+                const outerMesh = new THREE.Mesh(outerTubeGeo, chassisMaterial);
                 channelMeshGroup.add(outerMesh);
 
-                // Internal Silicone Neon Diffuser Tube (Glow Core)
-                const glowGeo = new THREE.ExtrudeGeometry(shape, { depth: channelDepth - 1.2, bevelEnabled: false });
-                glowGeo.translate(xCenterOffset, yCenterOffset, 1.2);
-                const glowMesh = new THREE.Mesh(glowGeo, glowMaterial);
+                // Internal Translucent Luminous Neon Flex Tube
+                const innerGlowGeo = new THREE.TubeGeometry(curve, 64, channelWidth / 2, 12, false);
+                const glowMesh = new THREE.Mesh(innerGlowGeo, glowMaterial);
+                glowMesh.position.z = 2;
                 neonGlowMeshGroup.add(glowMesh);
-
-                // Diffuser Retention Lip (snaps translucent faceplate/silicone in)
-                if (hasRetentionLip) {
-                    const lipGeo = new THREE.ExtrudeGeometry(shape, { depth: 1.0, bevelEnabled: false });
-                    lipGeo.translate(xCenterOffset, yCenterOffset, channelDepth - 1.0);
-                    const lipMesh = new THREE.Mesh(lipGeo, chassisMaterial);
-                    channelMeshGroup.add(lipMesh);
-                }
-
-                // Disconnected Character Island Wire Tunnels / Jumpers
-                if (hasWireTunnels) {
-                    const tunnelGeo = new THREE.CylinderGeometry(2.0, 2.0, backplateThickness + channelDepth, 16);
-                    tunnelGeo.rotateX(Math.PI / 2);
-                    const center = new THREE.Vector3();
-                    shape.getPoints().reduce((acc, p) => acc.add(p), center).divideScalar(shape.getPoints().length);
-                    tunnelGeo.translate(center.x + xCenterOffset, center.y + yCenterOffset, 0);
-                    const tunnelMesh = new THREE.Mesh(tunnelGeo, chassisMaterial);
-                    channelMeshGroup.add(tunnelMesh);
-                }
             });
 
-            // Build Backing Plate with Bed Splitting & Dovetails
-            if (hasBackplate && bbox) {
-                const width = (bbox.max.x - bbox.min.x) + (backplateOffset * 2);
-                const height = (bbox.max.y - bbox.min.y) + (backplateOffset * 2);
-                
-                const needsSplit = autoSplit && (width > bedWidth - 20 || height > bedWidth - 20);
+            // Backplate Generation
+            if (hasBackplate) {
+                const backW = targetWidth + (backplateOffset * 2);
+                const backH = ((bbox.max.y - bbox.min.y) * scaleFactor) + (backplateOffset * 2);
 
-                if (!needsSplit) {
-                    // Single Backplate Piece
-                    const backShape = createRoundedRectShape(width, height, 10);
-                    const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: backplateThickness, bevelEnabled: false });
-                    const singleBack = new THREE.Mesh(backGeo, backplateMaterial);
-                    singleBack.position.set(0, 0, -backplateThickness);
-                    backplateMeshGroup.add(singleBack);
-                } else {
-                    // Split Backplate into Quarters / Halves with Dovetails
-                    const halfW = width / 2;
-                    const halfH = height / 2;
-                    const pieceW = halfW + 6; // Overlap for dovetail socket
-                    const pieceH = halfH + 6;
+                const backShape = new THREE.Shape();
+                const r = 10;
+                const x = -backW / 2, y = -backH / 2;
+                backShape.moveTo(x, y + r);
+                backShape.lineTo(x, y + backH - r);
+                backShape.quadraticCurveTo(x, y + backH, x + r, y + backH);
+                backShape.lineTo(x + backW - r, y + backH);
+                backShape.quadraticCurveTo(x + backW, y + backH, x + backW, y + backH - r);
+                backShape.lineTo(x + backW, y + r);
+                backShape.quadraticCurveTo(x + backW, y, x + backW - r, y);
+                backShape.lineTo(x + r, y);
+                backShape.quadraticCurveTo(x, y, x, y + r);
 
-                    for (let px = -1; px <= 0; px++) {
-                        for (let py = -1; py <= 0; py++) {
-                            const partShape = createRoundedRectShape(pieceW, pieceH, 8);
-                            const backGeo = new THREE.ExtrudeGeometry(partShape, { depth: backplateThickness, bevelEnabled: false });
-                            const partMesh = new THREE.Mesh(backGeo, backplateMaterial);
-                            
-                            const posX = (px === -1 ? -pieceW / 2 + 3 : pieceW / 2 - 3);
-                            const posY = (py === -1 ? -pieceH / 2 + 3 : pieceH / 2 - 3);
-                            partMesh.position.set(posX, posY, -backplateThickness);
-
-                            // Add Dovetail Female/Male Connectors if enabled
-                            if (hasDovetails) {
-                                const dovetailGeo = new THREE.BoxGeometry(8, 4, backplateThickness);
-                                const dtMesh = new THREE.Mesh(dovetailGeo, backplateMaterial);
-                                dtMesh.position.set(posX > 0 ? -pieceW/2 + 2 : pieceW/2 - 2, posY, -backplateThickness/2);
-                                backplateMeshGroup.add(dtMesh);
-                            }
-
-                            backplateMeshGroup.add(partMesh);
-                        }
-                    }
-                }
+                const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: 3.5, bevelEnabled: false });
+                const backMesh = new THREE.Mesh(backGeo, chassisMaterial);
+                backMesh.position.z = -3.5;
+                backplateMeshGroup.add(backMesh);
             }
-        }
-
-        function createRoundedRectShape(width, height, radius) {
-            const shape = new THREE.Shape();
-            const x = -width / 2;
-            const y = -height / 2;
-            shape.moveTo(x, y + radius);
-            shape.lineTo(x, y + height - radius);
-            shape.quadraticCurveTo(x, y + height, x + radius, y + height);
-            shape.lineTo(x + width - radius, y + height);
-            shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
-            shape.lineTo(x + width, y + radius);
-            shape.quadraticCurveTo(x + width, y, x + width - radius, y);
-            shape.lineTo(x + radius, y);
-            shape.quadraticCurveTo(x, y, x, y + radius);
-            return shape;
-        }
-
-        // --- EXPORT FUNCTIONS ---
-        function exportSTL(group, filename) {
-            if (!group || group.children.length === 0) {
-                alert("No geometry available to export.");
-                return;
-            }
-            const exporter = new THREE.STLExporter();
-            const result = exporter.parse(group, { binary: true });
-            const blob = new Blob([result], { type: 'application/octet-stream' });
-            
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = filename;
-            link.click();
-        }
-
-        // --- EVENT LISTENERS ---
-        function setupEventListeners() {
-            const inputs = ['text-input', 'sign-height', 'printer-preset', 'auto-split', 'channel-width', 'channel-depth', 'wall-thickness', 'retention-lip', 'enable-backplate', 'backplate-offset', 'backplate-thickness', 'dovetail-joints', 'wire-tunnels', 'neon-color'];
-            inputs.forEach(id => {
-                document.getElementById(id).addEventListener('input', () => {
-                    updateLabels();
-                    rebuildSign();
-                });
-                document.getElementById(id).addEventListener('change', () => {
-                    updateLabels();
-                    rebuildSign();
-                });
-            });
-
-            document.getElementById('font-family').addEventListener('change', (e) => {
-                loadFont(fonts[e.target.value]);
-            });
-
-            document.getElementById('export-stl-channels').addEventListener('click', () => {
-                exportSTL(channelMeshGroup, 'LED_Neon_Channels.stl');
-            });
-
-            document.getElementById('export-stl-backplate').addEventListener('click', () => {
-                exportSTL(backplateMeshGroup, 'LED_Backplate_Sections.stl');
-            });
         }
 
         function updateLabels() {
-            document.getElementById('val-sign-height').innerText = document.getElementById('sign-height').value + 'mm';
-            document.getElementById('val-channel-depth').innerText = document.getElementById('channel-depth').value + 'mm';
-            document.getElementById('val-wall-thickness').innerText = parseFloat(document.getElementById('wall-thickness').value).toFixed(1) + 'mm';
-            document.getElementById('val-backplate-offset').innerText = document.getElementById('backplate-offset').value + 'mm';
-            document.getElementById('val-backplate-thickness').innerText = document.getElementById('backplate-thickness').value + 'mm';
-            document.getElementById('val-channel-width').innerText = document.getElementById('channel-width').value + 'mm Profile';
+            const isIn = currentUnit === 'in';
+            const unitStr = isIn ? ' in' : ' mm';
+            const conv = (val) => isIn ? (val / INCH_CONV).toFixed(1) : val;
+
+            document.getElementById('val-sign-width').innerText = conv(document.getElementById('sign-width').value) + unitStr;
+            document.getElementById('val-channel-depth').innerText = conv(document.getElementById('channel-depth').value) + unitStr;
+            document.getElementById('val-wall-thickness').innerText = conv(document.getElementById('wall-thickness').value) + unitStr;
+            document.getElementById('val-backplate-offset').innerText = conv(document.getElementById('backplate-offset').value) + unitStr;
             document.getElementById('color-hex').innerText = document.getElementById('neon-color').value;
+        }
+
+        function setupEventListeners() {
+            ['sign-width', 'base-shape', 'text-input', 'line-height', 'printer-preset', 'auto-split', 'channel-width', 'channel-depth', 'wall-thickness', 'enable-backplate', 'backplate-offset', 'dovetail-joints', 'wire-holes', 'neon-color'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', () => { updateLabels(); rebuildSign(); });
+                    el.addEventListener('change', () => { updateLabels(); rebuildSign(); });
+                }
+            });
+
+            document.getElementById('font-family').addEventListener('change', (e) => {
+                if (fonts[e.target.value]) loadFont(fonts[e.target.value]);
+            });
         }
 
         function onWindowResize() {
