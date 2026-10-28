@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LEDSign Studio v5.0 — Integrated LED Neon Sign Generator</title>
+    <title>LEDSign Studio — Integrated LED Neon Sign Generator</title>
     <style>
         :root {
             --bg-color: #0b0d12;
@@ -94,8 +94,6 @@
         }
         .btn-primary { background: var(--accent-gradient); color: #fff; box-shadow: 0 4px 15px rgba(0,198,255,0.25); }
         .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-secondary { background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border-color); }
-        .btn-secondary:hover { background: var(--border-color); }
 
         /* 3D Viewport */
         #viewport { flex: 1; position: relative; background: radial-gradient(circle at center, #1b2030 0%, #080a0f 100%); }
@@ -128,7 +126,7 @@
             <div class="section-title">1. Sign Dimensions & Base Shape</div>
             <div class="form-group">
                 <label for="sign-width">Sign Target Width <span id="val-sign-width">400 mm</span></label>
-                <input type="number" id="sign-width" value="400" min="50" max="5000" step="10">
+                <input type="number" id="sign-width" value="400" min="50" max="10000" step="10">
             </div>
             <div class="form-group">
                 <label for="base-shape">Backplate Shape Style</label>
@@ -144,7 +142,7 @@
             <div class="section-title">2. Text & Neon Fonts</div>
             <div class="form-group">
                 <label for="text-input">Sign Text (Multi-Line)</label>
-                <textarea id="text-input" rows="2">NEON
+                <textarea id="text-input" rows="3">NEON
 SIGN</textarea>
             </div>
             <div class="form-group">
@@ -162,11 +160,11 @@ SIGN</textarea>
                 </select>
             </div>
             <div class="form-group">
-                <label for="line-height">Line Spacing / Height <span id="val-line-height">1.3x</span></label>
-                <input type="range" id="line-height" min="0.8" max="2.5" step="0.1" value="1.3">
+                <label for="line-height">Line Spacing / Height <span id="val-line-height">1.4x</span></label>
+                <input type="range" id="line-height" min="1.0" max="2.5" step="0.1" value="1.4">
             </div>
 
-            <div class="section-title">3. 3D Printer & Bed Splitting</div>
+            <div class="section-title">3. 3D Printer & Bed Sizing</div>
             <div class="form-group">
                 <label for="printer-preset">3D Printer Preset</label>
                 <select id="printer-preset">
@@ -336,12 +334,12 @@ SIGN</textarea>
                 unifiedMeshGroup.remove(unifiedMeshGroup.children[0]);
             }
 
-            // Always work in base mm internally for 3D engine scale stability
+            // Always compute in base mm internally
             const rawWidthInput = parseFloat(document.getElementById('sign-width').value) || 400;
             const targetWidthMM = currentUnit === 'in' ? rawWidthInput * INCH_TO_MM : rawWidthInput;
 
             const baseShapeType = document.getElementById('base-shape').value;
-            const textLines = (document.getElementById('text-input').value || "NEON").split('\n');
+            const textLines = (document.getElementById('text-input').value || "NEON\nSIGN").split('\n');
             const lineHeightMult = parseFloat(document.getElementById('line-height').value);
             const channelDepth = parseFloat(document.getElementById('channel-depth').value);
             const wallThick = parseFloat(document.getElementById('wall-thickness').value);
@@ -350,8 +348,7 @@ SIGN</textarea>
             const backplateOffset = parseFloat(document.getElementById('backplate-offset').value);
             const glowColor = document.getElementById('neon-color').value;
 
-            // Materials
-            // Lighter backplane color for high contrast & sizing visibility
+            // Materials (Lighter backplate for clear visibility)
             const backplaneMat = new THREE.MeshStandardMaterial({ color: 0x9aa5b5, roughness: 0.5, metalness: 0.1 });
             const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1f2430, roughness: 0.4 });
             const glowMat = new THREE.MeshStandardMaterial({
@@ -361,46 +358,60 @@ SIGN</textarea>
                 roughness: 0.1
             });
 
-            // Stacked Multi-Line Geometry Math
-            const approxCharSize = targetWidthMM / 6;
-            const lineStep = approxCharSize * lineHeightMult;
-            let lineGeometries = [];
-            let combinedShapes = [];
+            // Multi-Line Baseline & Bounding Box Calculation
+            const baseFontSize = 100; // Standard font scale unit for Three.js typography
+            let allLinesShapes = [];
+            let maxLineWidth = 0;
 
-            textLines.forEach((lineText, lineIdx) => {
+            textLines.forEach((lineText) => {
                 if (!lineText.trim()) return;
-                const shapes = currentFont.generateShapes(lineText, approxCharSize);
-                const yShift = - (lineIdx * lineStep);
-                
+                const shapes = currentFont.generateShapes(lineText, baseFontSize);
+                const lineBox = new THREE.Box3();
                 shapes.forEach(s => {
+                    const geom = new THREE.ShapeGeometry(s);
+                    geom.computeBoundingBox();
+                    lineBox.union(geom.boundingBox);
+                });
+                const w = lineBox.max.x - lineBox.min.x;
+                if (w > maxLineWidth) maxLineWidth = w;
+                allLinesShapes.push({ text: lineText, shapes: shapes, width: w });
+            });
+
+            if (allLinesShapes.length === 0) return;
+
+            // Compute global scale factor to fit target width
+            const scaleFactor = targetWidthMM / (maxLineWidth || 1);
+            const totalTextHeight = allLinesShapes.length * baseFontSize * lineHeightMult;
+
+            let combinedShapesWithOffset = [];
+
+            allLinesShapes.forEach((lineObj, lineIdx) => {
+                const yOffset = - (lineIdx * baseFontSize * lineHeightMult) + (totalTextHeight / 2) - (baseFontSize / 2);
+                const xOffset = - (lineObj.width / 2); // Center align each line
+
+                lineObj.shapes.forEach(s => {
                     const clonedShape = s.clone();
                     clonedShape.curves.forEach(c => {
-                        if(c.v1) c.v1.y += yShift;
-                        if(c.v2) c.v2.y += yShift;
-                        if(c.v3) c.v3.y += yShift;
+                        if(c.v1) { c.v1.x += xOffset; c.v1.y += yOffset; }
+                        if(c.v2) { c.v2.x += xOffset; c.v2.y += yOffset; }
+                        if(c.v3) { c.v3.x += xOffset; c.v3.y += yOffset; }
                     });
-                    combinedShapes.push(clonedShape);
+                    combinedShapesWithOffset.push(clonedShape);
                 });
             });
 
-            if (combinedShapes.length === 0) return;
-
-            // Normalize Total Sign Scale
-            const tempGeo = new THREE.ShapeGeometry(combinedShapes);
+            // Overall Bounding Box after multi-line stacking
+            const tempGeo = new THREE.ShapeGeometry(combinedShapesWithOffset);
             tempGeo.computeBoundingBox();
             const bbox = tempGeo.boundingBox;
-            const currentSignWidth = bbox.max.x - bbox.min.x;
-            const currentSignHeight = bbox.max.y - bbox.min.y;
-            const scaleFactor = targetWidthMM / (currentSignWidth || 1);
-
-            const signCenterX = (bbox.max.x + bbox.min.x) / 2;
-            const signCenterY = (bbox.max.y + bbox.min.y) / 2;
+            const totalWidthScaled = (bbox.max.x - bbox.min.x) * scaleFactor;
+            const totalHeightScaled = (bbox.max.y - bbox.min.y) * scaleFactor;
 
             // 1. Unified Backplate Base
             const backplateThickness = 4.0;
             if (hasBackplate) {
-                const totalBackW = targetWidthMM + (backplateOffset * 2);
-                const totalBackH = (currentSignHeight * scaleFactor) + (backplateOffset * 2);
+                const totalBackW = totalWidthScaled + (backplateOffset * 2);
+                const totalBackH = totalHeightScaled + (backplateOffset * 2);
 
                 let backShape = new THREE.Shape();
                 if (baseShapeType === 'rounded' || baseShapeType === 'contour') {
@@ -441,13 +452,13 @@ SIGN</textarea>
             }
 
             // 2. Neon Path Housing Integrated Directly on Top of Backplane
-            combinedShapes.forEach((shape) => {
+            combinedShapesWithOffset.forEach((shape) => {
                 const points = shape.getPoints();
                 if (points.length < 2) return;
 
                 const curvePoints = points.map(p => new THREE.Vector3(
-                    (p.x - signCenterX) * scaleFactor,
-                    (p.y - signCenterY) * scaleFactor,
+                    p.x * scaleFactor,
+                    p.y * scaleFactor,
                     backplateThickness
                 ));
                 
