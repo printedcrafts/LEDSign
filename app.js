@@ -203,7 +203,30 @@ async function uploadFont(file){
     status('Font loaded: '+file.name+'. Automatically traced the centerline. Review joins; use manual routing only for corrections.');
   }finally{uploadBusy=false;}
 }
-function smooth(points){if(points.length<3)return points.map(p=>({...p}));const out=[];for(let i=0;i<points.length-1;i++){const p0=points[Math.max(0,i-1)],p1=points[i],p2=points[i+1],p3=points[Math.min(points.length-1,i+2)],n=Math.max(2,Math.ceil(Math.hypot(p2.x-p1.x,p2.y-p1.y)/2));for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;const xy=key=>.5*((2*p1[key])+(-p0[key]+p2[key])*t+(2*p0[key]-5*p1[key]+4*p2[key]-p3[key])*t2+(-p0[key]+3*p1[key]-3*p2[key]+p3[key])*t3);out.push({x:xy('x'),y:xy('y')});}}out.push({...points.at(-1)});return out;}
+function smooth(points){
+  if(points.length<3)return points.map(p=>({...p}));
+  const closeEnough=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<.2;
+  const closed=points.length>3&&closeEnough(points[0],points[points.length-1]);
+  const src=closed?points.slice(0,-1):points;
+  if(src.length<3)return points.map(p=>({...p}));
+  const out=[];
+  // Closed loops need cyclic Catmull-Rom neighbours. Smoothing them as an
+  // open polyline moves the seam and makes a kink in the O/ring endpoint.
+  const segments=closed?src.length:src.length-1;
+  for(let i=0;i<segments;i++){
+    const p0=src[closed?(i-1+src.length)%src.length:Math.max(0,i-1)];
+    const p1=src[i],p2=src[(i+1)%src.length]||src[i+1];
+    const p3=src[closed?(i+2)%src.length:Math.min(src.length-1,i+2)];
+    const n=Math.max(2,Math.ceil(Math.hypot(p2.x-p1.x,p2.y-p1.y)/2));
+    for(let k=0;k<n;k++){
+      const t=k/n,t2=t*t,t3=t2*t;
+      const xy=key=>.5*((2*p1[key])+(-p0[key]+p2[key])*t+(2*p0[key]-5*p1[key]+4*p2[key]-p3[key])*t2+(-p0[key]+3*p1[key]-3*p2[key]+p3[key])*t3);
+      out.push({x:xy('x'),y:xy('y')});
+    }
+  }
+  if(closed)out.push({...out[0]});else out.push({...points.at(-1)});
+  return out;
+}
 function shapePaths(){return shapes.map(s=>{const p=[];const n=s.kind==='line'?2:Math.max(32,Math.ceil(Math.max(s.w,s.h)/3)),count=s.kind==='arc'?n: n;for(let i=0;i<count;i++){let x,y,t=i/(count-1);if(s.kind==='line'){x=(t-.5)*s.w;y=0;}else if(s.kind==='rectangle'){const d=t*4;const a=Math.floor(d)%4,u=d-a;const edges=[[-.5+u,-.5],[.5,-.5+u],[.5-u,.5],[-.5,.5-u]];[x,y]=edges[a];x*=s.w;y*=s.h;}else{const ang=(s.kind==='arc'?Math.PI*(1-t):2*Math.PI*t);x=Math.cos(ang)*s.w*.5;y=Math.sin(ang)*s.h*.5;}p.push({x:s.x+x,y:s.y+y});}if(s.kind==='circle'||s.kind==='ellipse'||s.kind==='rectangle')p.push({...p[0]});return p;});}
 function allPaths(){return [...lines,...shapePaths()].filter(p=>p.length>1);}
 function range(){if(manualMode&&uploadedFont&&$('font').value==='custom'){const c=document.createElement('canvas').getContext('2d');c.font='100px LEDSignUploaded';const tw=c.measureText(sourceText()).width||100;return {minX:0,minY:0,maxX:+$('width').value,maxY:Math.max(50,100*(+$('width').value)/tw),w:+$('width').value,h:Math.max(50,100*(+$('width').value)/tw)};}const pts=allPaths().flat();if(!pts.length)return {minX:0,minY:0,maxX:450,maxY:150,w:450,h:150};const minX=Math.min(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxX=Math.max(...pts.map(p=>p.x)),maxY=Math.max(...pts.map(p=>p.y));return {minX,minY,maxX,maxY,w:maxX-minX,h:maxY-minY};}
@@ -223,7 +246,41 @@ function buildLines(){try{if($('font').value==='custom'&&manualMode){fontPreview
 function invalidate(){downloadBlob=null;$('download').disabled=true;view();}
 function orient(a,b){return a[0]*b[1]-a[1]*b[0];}
 function capTriangles(poly){const ids=poly.map((_,i)=>i),tri=[];let area=0;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];area+=orient(a,b);}const sign=Math.sign(area)||1;for(let loop=0;ids.length>3&&loop<100;loop++){let found=false;for(let i=0;i<ids.length;i++){const A=ids[(i+ids.length-1)%ids.length],B=ids[i],C=ids[(i+1)%ids.length],a=poly[A],b=poly[B],c=poly[C];if(orient([b[0]-a[0],b[1]-a[1]],[c[0]-b[0],c[1]-b[1]])*sign<1e-8)continue;let inside=false;for(const j of ids){if([A,B,C].includes(j))continue;const p=poly[j];const f=(u,v,w)=>orient([v[0]-u[0],v[1]-u[1]],[w[0]-u[0],w[1]-u[1]])*sign; if(f(a,b,p)>0&&f(b,c,p)>0&&f(c,a,p)>0){inside=true;break;}}if(inside)continue;tri.push([A,B,C]);ids.splice(i,1);found=true;break;}if(!found)throw Error('Could not triangulate end cap.');}if(ids.length===3)tri.push([...ids]);return tri;}
-function swept(points,profile){const pts=smooth(points).filter((p,i,a)=>i===0||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>.15);if(pts.length<2)throw Error('Path too short');const sections=[];for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)],len=Math.hypot(b.x-a.x,b.y-a.y)||1,nx=-(b.y-a.y)/len,ny=(b.x-a.x)/len;sections.push(profile.map(([u,z])=>[pts[i].x+nx*u,pts[i].y+ny*u,z]));}const triangles=[];const add=(a,b,c)=>{if(Math.hypot(...a.map((v,i)=>v-b[i]))<1e-7)return;triangles.push([a,b,c]);};const n=profile.length;for(let i=0;i<sections.length-1;i++)for(let j=0;j<n;j++){const k=(j+1)%n;add(sections[i][j],sections[i+1][j],sections[i+1][k]);add(sections[i][j],sections[i+1][k],sections[i][k]);}const caps=capTriangles(profile);for(const [a,b,c]of caps){add(sections[0][c],sections[0][b],sections[0][a]);const e=sections.at(-1);add(e[a],e[b],e[c]);}return triangles;}
+function swept(points,profile){
+  const isClosed=points.length>3&&Math.hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)<.2;
+  let pts=smooth(points).filter((p,i,a)=>i===0||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>.15);
+  if(isClosed&&pts.length>2&&Math.hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<.2)pts=pts.slice(0,-1);
+  if(pts.length<2)throw Error('Path too short');
+  const sections=[];
+  for(let i=0;i<pts.length;i++){
+    const a=pts[isClosed?(i-1+pts.length)%pts.length:Math.max(0,i-1)];
+    const b=pts[isClosed?(i+1)%pts.length:Math.min(pts.length-1,i+1)];
+    const len=Math.hypot(b.x-a.x,b.y-a.y)||1,nx=-(b.y-a.y)/len,ny=(b.x-a.x)/len;
+    sections.push(profile.map(([u,z])=>[pts[i].x+nx*u,pts[i].y+ny*u,z]));
+  }
+  const triangles=[];
+  const add=(a,b,c)=>{if(Math.hypot(...a.map((v,i)=>v-b[i]))<1e-7)return;triangles.push([a,b,c]);};
+  const n=profile.length,links=isClosed?sections.length:sections.length-1;
+  for(let i=0;i<links;i++){
+    const next=(i+1)%sections.length;
+    for(let j=0;j<n;j++){
+      const k=(j+1)%n;
+      add(sections[i][j],sections[next][j],sections[next][k]);
+      add(sections[i][j],sections[next][k],sections[i][k]);
+    }
+  }
+  // Open paths need caps; closed loops connect the last section back to the
+  // first without caps so the tube wall is continuous around the letter.
+  if(!isClosed){
+    const caps=capTriangles(profile);
+    for(const [a,b,c]of caps){
+      add(sections[0][c],sections[0][b],sections[0][a]);
+      const e=sections.at(-1);
+      add(e[a],e[b],e[c]);
+    }
+  }
+  return triangles;
+}
 function channelProfile(o){return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];}
 function solidProfile(width,height){return [[-width/2,0],[width/2,0],[width/2,height],[-width/2,height]];}
 function stlBinary(tris){const bytes=new ArrayBuffer(84+tris.length*50),v=new DataView(bytes);v.setUint32(80,tris.length,true);let offset=84;for(const t of tris){const [a,b,c]=t,A=b.map((x,i)=>x-a[i]),B=c.map((x,i)=>x-a[i]),N=[A[1]*B[2]-A[2]*B[1],A[2]*B[0]-A[0]*B[2],A[0]*B[1]-A[1]*B[0]],l=Math.hypot(...N)||1;for(const x of N)v.setFloat32(offset,(x/l)||0,true),offset+=4;for(const vertex of t)for(const x of vertex)v.setFloat32(offset,x,true),offset+=4;v.setUint16(offset,0,true);offset+=2;}return new Uint8Array(bytes);}
