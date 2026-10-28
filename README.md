@@ -1,13 +1,17 @@
-LEDSign custom-font centerline editor
+# PrintedCrafts LEDSign Studio
 
-Deployment: replace index.html, app.js, style.css in the root of main.
+A browser-based LED neon sign builder focused on **single centerline paths** and printable U-channel parts.
 
-Uploaded fonts are rendered only as a dim reference. Click Draw LED path, then click successive points along the middle of the neon tube. Finish section for each separate LED segment. STL export uses those actual user-defined centerlines. Use rear wiring route tools for electrical links.
+## Basic workflow
+1. Enter a phrase such as `NEON SIGN`. The built-in PrintedCrafts alphabet is authored as single-line LED strokes for an immediate preview.
+2. To use another font, upload a TTF or OTF file. The browser renders the lettering to a raster mask, thins the glyph strokes with Zhang–Suen skeletonization, and traces the skeleton into centerline polylines.
+3. Review the preview, change the target width and channel profile, and correct tricky joins in manual centerline mode if needed.
+4. Choose a printer-bed preset, generate the STL parts, and download the ZIP.
+5. Inspect each STL in a slicer before printing. Check channel opening against the real LED flex, minimum bend radius, wall thickness, manifoldness, support fit, and wiring clearance.
 
-Limits: manual placement required; curved routes are polyline approximations; no automated font-to-neon path inference, bend radius enforcement, mechanical locks, or manufacturer-validated retention features. Verify STLs in slicer and LED hardware fit before manufacturing.
+## Important limitations
+Raster medial-axis extraction is a heuristic, not a perfect typographic skeleton. Branching glyphs (for example E, F, K, and G), thin/light fonts, serif details, scripts, tiny punctuation, and tight character spacing can produce ambiguous joins or unwanted stubs. Manual corrections may be needed. Not every decorative font is suitable for continuous LED routing, and the software cannot guarantee that every phrase is electrically continuous or mechanically valid.
 
-## SVG Channel Letter Studio add-on
+Generated channel parts are experimental: inspect them in your slicer, check dimensions and mesh integrity, verify the strip manufacturer's minimum bend radius, and test with the actual hardware. Rear raceways are separate pieces and are not boolean-cut into supports. Use properly insulated wiring, strain relief, and a suitably rated power supply. This project is a design aid, not electrical certification.
 
-The main page includes an **Open SVG Channel Letter Studio** launch button. It is an additive experimental mode; the existing generator remains in place. Import a filled SVG (convert text/strokes to outlines first), or upload a TTF/OTF/WOFF font and build vector text outlines. Set channel wall height, wall thickness, floor thickness, and an optional flat diffuser ledge. Preview the geometry in 3D and export STL or GLB.
-
-The add-on loads Three.js geometry libraries and OpenType.js from public CDNs, so a network connection is needed. The uploaded SVG/font is processed in the browser; this code does not upload the artwork. This feature has only received static JavaScript syntax validation in this change, not browser/WebGL end-to-end testing. Cavity offsets and boolean operations can fail on narrow counters, tiny details, or acute corners. Always inspect manifoldness, dimensions, LED clearance, and diffuser fit in a slicer before manufacturing. It does not yet implement angled ledge gussets, per-wall ledge toggles, or robust automatic mesh repair.
+Font files are processed locally in the browser; the app does not upload them to a server. The page requires a modern browser with Canvas and SVG support. GitHub Pages is supported when `index.html`, `app.js`, and `style.css` are published from the same directory.

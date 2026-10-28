@@ -116,34 +116,68 @@ function pathsFromUploadedFont(){
   const family='LEDSignUploaded',px=100;
   ctx.font=`${px}px "${family}"`;
   const measure=ctx.measureText(text);
-  const scale=Math.min(1,300/Math.max(1,measure.width+24));
-  const w=Math.max(40,Math.min(320,Math.ceil(measure.width*scale+30)));
-  const h=Math.max(36,Math.ceil(145*scale+20));
+  // Keep enough raster detail for thinning while limiting processing time.
+  // Raster pixels are only a sampling grid; paths are scaled to millimetres later.
+  const scale=Math.min(1,680/Math.max(1,measure.width));
+  const w=Math.max(64,Math.min(720,Math.ceil(measure.width*scale+40)));
+  const h=Math.max(64,Math.min(220,Math.ceil(150*scale+40)));
   canvas.width=w;canvas.height=h;
   ctx.font=`${px*scale}px "${family}"`;
   ctx.textBaseline='alphabetic';ctx.fillStyle='white';
-  ctx.fillText(text,12,118*scale+8);
+  ctx.fillText(text,20,120*scale+15);
   const rgba=ctx.getImageData(0,0,w,h).data;
   const mask=createGrid(w,h);
   for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>90?1:0;
-  const ink=count(mask);
-  if(ink<10)throw Error('Uploaded font did not render pixels.');
-  // Never mistake disconnected skeleton fragments for valid signature lettering.
-  // The raster perimeter traces the actual uploaded glyph silhouette and preserves
-  // connected script lettering. This is an OUTLINE routing mode, not a centerline.
-  const contours=contourFallback(mask);
-  if (!contours.length) throw Error('No readable glyph contours found in the uploaded font.');
-  const refined=contours.map(p=>smoothContourLoop(p)).filter(p=>p.length>=5);
-  traceMessage='Glyph contour mode: paths follow the real letter edges, NOT single-stroke neon centerlines. Inspect LED routing before printing.';
-  return refined;
+  if(count(mask)<10)throw Error('Uploaded font did not render pixels. Check the font and text.');
+  const skeleton=skeletonize(mask);
+  const traced=traceSkeleton(skeleton);
+  if(!traced.length)throw Error('No centerline paths could be traced. Try a bolder, simpler font.');
+  // Discard only tiny raster specks; retain short legitimate branches at E/F/G
+  // junctions so the letter does not lose a bar.
+  const useful=traced.filter(path=>{
+    let length=0;
+    for(let i=1;i<path.length;i++)length+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
+    return length>=4;
+  });
+  if(!useful.length)throw Error('The font was too thin or small to create stable centerlines. Try a larger/bolder font.');
+  traceMessage='Automatic raster centerline mode: inspect letter branches and bend radius before printing.';
+  return useful;
 }
 function traceSkeleton(g){
+  // Trace the thinned bitmap as a graph. Ignore diagonal links when an
+  // orthogonal neighbour already connects those pixels; this avoids false
+  // branches at ordinary 45-degree corners.
   const {w,h}=g,mark=g.data;
   const offsets=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
-  function around(i){const x=i%w,y=Math.floor(i/w),out=[];for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&mark[yy*w+xx])out.push(yy*w+xx);}return out;}
-  const nbr=new Map();for(let i=0;i<mark.length;i++)if(mark[i])nbr.set(i,around(i));
+  function around(i){
+    const x=i%w,y=Math.floor(i/w),out=[];
+    for(const [dx,dy] of offsets){
+      const xx=x+dx,yy=y+dy;
+      if(xx<0||yy<0||xx>=w||yy>=h||!mark[yy*w+xx])continue;
+      if(dx!==0&&dy!==0&&(mark[y*w+xx]||mark[yy*w+x]))continue;
+      out.push(yy*w+xx);
+    }
+    return out;
+  }
+  const nbr=new Map();
+  for(let i=0;i<mark.length;i++)if(mark[i])nbr.set(i,around(i));
   const used=new Set(),paths=[],key=(a,b)=>a<b?a+':'+b:b+':'+a,pos=i=>({x:i%w,y:Math.floor(i/w)});
-  function walk(a,b){let previous=a,current=b,pts=[pos(a),pos(b)];used.add(key(a,b));let steps=0;while(steps++<mark.length){const n=(nbr.get(current)||[]).filter(k=>k!==previous&&!used.has(key(current,k)));if(n.length!==1)break;const next=n[0];used.add(key(current,next));pts.push(pos(next));previous=current;current=next;if(current===a)break;}if(pts.length>1){const sampled=pts.filter((_,i)=>i===0||i===pts.length-1||i%3===0);paths.push(sampled);}}
+  function walk(a,b){
+    let previous=a,current=b,pts=[pos(a),pos(b)];
+    used.add(key(a,b));
+    let steps=0;
+    while(steps++<mark.length){
+      const n=(nbr.get(current)||[]).filter(k=>k!==previous&&!used.has(key(current,k)));
+      if(n.length!==1)break;
+      const next=n[0];used.add(key(current,next));pts.push(pos(next));
+      previous=current;current=next;
+      if(current===a)break;
+    }
+    if(pts.length>1){
+      const sampled=pts.filter((_,i)=>i===0||i===pts.length-1||i%3===0);
+      paths.push(sampled);
+    }
+  }
   for(const [i,n] of nbr)if(n.length!==2)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
   for(const [i,n] of nbr)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
   return paths.filter(p=>p.length>=2).slice(0,280);
@@ -160,15 +194,15 @@ async function uploadFont(file){
     if(uploadedFont)document.fonts.delete(uploadedFont);
     document.fonts.add(face);uploadedFont=face;
     $('font').value='custom';
-    manualMode=true; drawing=false; draftLed=[];
-    uploadBusy=false;customFont=true;fontPreviewOnly=true;lines=[];downloadBlob=null;$('download').disabled=true;
-    // Render the actual uploaded font first, before computational tracing.
-    view();status('Font loaded: '+file.name+'. Select Draw LED path, then click along the CENTER of each intended neon stroke. Do not follow both edges.');
+    // Automatic centerline extraction is the default; manual routing is an
+    // explicit override for places where the traced font needs correction.
+    manualMode=false;drawing=false;draftLed=[];customFont=true;
+    lines=[];downloadBlob=null;$('download').disabled=true;
+    await document.fonts.ready;
+    buildLines();
+    status('Font loaded: '+file.name+'. Automatically traced the centerline. Review joins; use manual routing only for corrections.');
   }finally{uploadBusy=false;}
 }
-
-
-// Smooth, sampled polyline geometry in physical millimetres.
 function smooth(points){if(points.length<3)return points.map(p=>({...p}));const out=[];for(let i=0;i<points.length-1;i++){const p0=points[Math.max(0,i-1)],p1=points[i],p2=points[i+1],p3=points[Math.min(points.length-1,i+2)],n=Math.max(2,Math.ceil(Math.hypot(p2.x-p1.x,p2.y-p1.y)/2));for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;const xy=key=>.5*((2*p1[key])+(-p0[key]+p2[key])*t+(2*p0[key]-5*p1[key]+4*p2[key]-p3[key])*t2+(-p0[key]+3*p1[key]-3*p2[key]+p3[key])*t3);out.push({x:xy('x'),y:xy('y')});}}out.push({...points.at(-1)});return out;}
 function shapePaths(){return shapes.map(s=>{const p=[];const n=s.kind==='line'?2:Math.max(32,Math.ceil(Math.max(s.w,s.h)/3)),count=s.kind==='arc'?n: n;for(let i=0;i<count;i++){let x,y,t=i/(count-1);if(s.kind==='line'){x=(t-.5)*s.w;y=0;}else if(s.kind==='rectangle'){const d=t*4;const a=Math.floor(d)%4,u=d-a;const edges=[[-.5+u,-.5],[.5,-.5+u],[.5-u,.5],[-.5,.5-u]];[x,y]=edges[a];x*=s.w;y*=s.h;}else{const ang=(s.kind==='arc'?Math.PI*(1-t):2*Math.PI*t);x=Math.cos(ang)*s.w*.5;y=Math.sin(ang)*s.h*.5;}p.push({x:s.x+x,y:s.y+y});}if(s.kind==='circle'||s.kind==='ellipse'||s.kind==='rectangle')p.push({...p[0]});return p;});}
 function allPaths(){return [...lines,...shapePaths()].filter(p=>p.length>1);}
@@ -281,6 +315,6 @@ function alignSelected(axis){
  if(axis==='middle')s.y=(minY+maxY)/2;
  invalidate();
 }
-function wire(){for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).onclick=()=>{if(mode==='waypoint'&&!wireDraft.length){status('Set route Start first.',true);return;}if(mode==='end'&&!wireDraft.length){status('Set route Start first.',true);return;}wireMode=mode;updateWireUI();};$('routeUndo').onclick=()=>{if(wireDraft.length)wireDraft.pop();else if(wireRoutes.length)wireDraft=wireRoutes.pop().slice(0,-1);wireMode=wireDraft.length?'end':'start';updateWireUI();invalidate();};$('routeDelete').onclick=()=>{if(wireRoutes.length)wireRoutes.splice(selectedWireRoute>=0?selectedWireRoute:wireRoutes.length-1,1);selectedWireRoute=-1;updateWireUI();invalidate();};$('routeClear').onclick=()=>{wireRoutes=[];wireDraft=[];wireMode='';selectedWireRoute=-1;updateWireUI();invalidate();};for(const id of ['wireWidth','wireWall','wireDepth'])$(id).addEventListener('input',invalidate);$('preview').addEventListener('click',e=>{if(drawing){if(e.target.hasAttribute('data-shape')||e.target.hasAttribute('data-resize'))return;draftLed.push(world(e));invalidate();status(`Routing section ${lines.length+1}: ${draftLed.length} points. Click Finish section when complete.`);return;}if(!wireMode)return;try{addWirePoint(world(e));}catch(err){status(err.message,true);}});for(const id of ['text','width'])$(id).addEventListener('input',()=>{if(manualMode&&lines.length){lines=[];draftLed=[];drawing=false;status('Font dimensions changed; previous LED routes cleared to prevent scaling mismatch.');}buildLines();});for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',()=>{manualMode=$('font').value==='custom';lines=[];draftLed=[];drawing=false;buildLines();});$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);$('manualBegin').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a font first.',true);return;}drawing=true;wireMode='';status('Click along the center of one LED strip run. Use several points on curves. Finish each disconnected section separately.');};$('manualFinish').onclick=()=>{if(draftLed.length>=2){lines.push(draftLed.slice());draftLed=[];drawing=false;fontPreviewOnly=false;invalidate();status(`${lines.length} LED section(s) ready for STL. Add another section as needed.`);}else status('Select at least two centerline points before finishing.',true);};$('manualUndo').onclick=()=>{draftLed.pop();invalidate();};$('manualClear').onclick=()=>{lines=[];draftLed=[];drawing=false;invalidate();status('LED paths cleared. Font remains as a reference.');};$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
+function wire(){for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).onclick=()=>{if(mode==='waypoint'&&!wireDraft.length){status('Set route Start first.',true);return;}if(mode==='end'&&!wireDraft.length){status('Set route Start first.',true);return;}wireMode=mode;updateWireUI();};$('routeUndo').onclick=()=>{if(wireDraft.length)wireDraft.pop();else if(wireRoutes.length)wireDraft=wireRoutes.pop().slice(0,-1);wireMode=wireDraft.length?'end':'start';updateWireUI();invalidate();};$('routeDelete').onclick=()=>{if(wireRoutes.length)wireRoutes.splice(selectedWireRoute>=0?selectedWireRoute:wireRoutes.length-1,1);selectedWireRoute=-1;updateWireUI();invalidate();};$('routeClear').onclick=()=>{wireRoutes=[];wireDraft=[];wireMode='';selectedWireRoute=-1;updateWireUI();invalidate();};for(const id of ['wireWidth','wireWall','wireDepth'])$(id).addEventListener('input',invalidate);$('preview').addEventListener('click',e=>{if(drawing){if(e.target.hasAttribute('data-shape')||e.target.hasAttribute('data-resize'))return;draftLed.push(world(e));invalidate();status(`Routing section ${lines.length+1}: ${draftLed.length} points. Click Finish section when complete.`);return;}if(!wireMode)return;try{addWirePoint(world(e));}catch(err){status(err.message,true);}});for(const id of ['text','width'])$(id).addEventListener('input',()=>{if(manualMode&&lines.length){lines=[];draftLed=[];drawing=false;status('Font dimensions changed; previous LED routes cleared to prevent scaling mismatch.');}buildLines();});for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',()=>{manualMode=false;lines=[];draftLed=[];drawing=false;buildLines();});$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);$('autoTrace').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a TTF/OTF font first to auto-trace its centerline.',true);return;}manualMode=false;drawing=false;draftLed=[];buildLines();};$('manualBegin').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a font first.',true);return;}if(!manualMode){manualMode=true;lines=[];draftLed=[];invalidate();}drawing=true;wireMode='';status('Manual correction mode: click the center of each intended LED stroke. Finish each disconnected section separately.');};$('manualFinish').onclick=()=>{if(draftLed.length>=2){lines.push(draftLed.slice());draftLed=[];drawing=false;fontPreviewOnly=false;invalidate();status(`${lines.length} LED section(s) ready for STL. Add another section as needed.`);}else status('Select at least two centerline points before finishing.',true);};$('manualUndo').onclick=()=>{draftLed.pop();invalidate();};$('manualClear').onclick=()=>{lines=[];draftLed=[];drawing=false;invalidate();status('LED paths cleared. Font remains as a reference.');};$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
 window.addEventListener('error',e=>status(`Application error: ${e.message}`,true));
 wire();buildLines();updateWireUI();
