@@ -67,14 +67,13 @@ function draftPaths(){
   return paths;
 }
 function normalizePaths(paths){
-  const points=paths.flat();const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));
-  const spanX=Math.max(1,maxX-minX),scale=+$('width').value/spanX,desiredMargin=15;
-  const spacing=+$('letterSpacing').value||0,pairAfter=Math.max(1,+$('pairAfter').value||1),pairSpacing=+$('pairSpacing').value||0;
-  return paths.map(path=>{
-    const idx=Number.isFinite(path.charIndex)?path.charIndex:null;
-    const offset=idx===null?0:idx*spacing+(idx>=pairAfter?pairSpacing:0);
-    return path.map(pt=>({x:(pt.x-minX)*scale+desiredMargin+offset,y:(pt.y-minY)*scale+desiredMargin}));
-  });
+ const points=paths.flat(),minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));
+ const spanX=Math.max(1,maxX-minX),target=Math.max(100,+$('width').value||400),count=Math.max(1,Array.from(sourceText()).length);
+ const spacing=+$('letterSpacing').value||0,pairAfter=Math.max(1,+$('pairAfter').value||1),pair=+$('pairSpacing').value||0;
+ const from=Math.max(1,+$('letterFrom').value||1),to=Math.max(from,+$('letterTo').value||from),groupX=+$('groupOffsetX').value||0,groupY=+$('groupOffsetY').value||0,usable=target-(spacing*(count-1)+pair);
+ if(usable<20)throw Error('Kerning adds too much spacing for the selected target width. Reduce letter or pair spacing.');
+ const scale=usable/spanX,margin=15;
+ return paths.map(path=>{const idx=Number.isFinite(path.charIndex)?path.charIndex:null,selected=idx!==null&&idx>=from-1&&idx<=to-1,offset=idx===null?0:idx*spacing+(idx>=pairAfter?pair:0)+(selected?groupX:0);return path.map(pt=>({x:(pt.x-minX)*scale+margin+offset,y:(pt.y-minY)*scale+margin+(selected?groupY:0)}));});
 }
 
 // Signature-font conversion: first try centerlines, then bounded contours.
@@ -141,22 +140,22 @@ function smoothContourLoop(path){
 }
 
 function pathsFromUploadedFont(){
-  const text=sourceText(),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
-  if(!ctx)throw Error('Canvas 2D unavailable in this browser.');
-  const family='LEDSignUploaded',px=100;ctx.font=px+'px "'+family+'"';
-  const measure=ctx.measureText(text),targetWidth=Math.max(100,+$('width').value||400),chars=Array.from(text),scale=Math.min(1,680/Math.max(1,measure.width));
-  const spacingMm=+$('letterSpacing').value||0,pairMm=+$('pairSpacing').value||0,pairAfter=Math.max(1,+$('pairAfter').value||1),spacingPx=spacingMm*measure.width/targetWidth*scale,pairPx=pairMm*measure.width/targetWidth*scale;
-  const spacingAllowance=spacingPx*(chars.length-1)+Math.max(0,pairPx),w=Math.max(64,Math.min(960,Math.ceil(measure.width*scale+spacingAllowance+48))),h=Math.max(64,Math.min(240,Math.ceil(150*scale+40)));
-  canvas.width=w;canvas.height=h;ctx.font=(px*scale)+'px "'+family+'"';ctx.textBaseline='alphabetic';ctx.fillStyle='white';
-  const baseX=24,baseline=120*scale+15;
-  chars.forEach((char,i)=>{const naturalX=ctx.measureText(chars.slice(0,i).join('')).width,x=baseX+naturalX+spacingPx*i+(i>=pairAfter?pairPx:0);ctx.fillText(char,x,baseline);});
+ const text=sourceText(),chars=Array.from(text),px=100,family='LEDSignUploaded',measureCanvas=document.createElement('canvas'),measureCtx=measureCanvas.getContext('2d');
+ if(!measureCtx)throw Error('Canvas 2D unavailable in this browser.');
+ measureCtx.font=px+'px "'+family+'"';
+ const naturalWidth=measureCtx.measureText(text).width,scale=Math.min(1,680/Math.max(1,naturalWidth)),paths=[];let cursor=0;
+ for(let ci=0;ci<chars.length;ci++){
+  const char=chars[ci],w=Math.max(36,Math.min(200,Math.ceil(measureCtx.measureText(char).width*scale+38))),h=Math.max(64,Math.min(240,Math.ceil(150*scale+40)));
+  if(char===' '){cursor+=Math.max(20,measureCtx.measureText(char).width*scale);continue;}
+  const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Canvas 2D unavailable in this browser.');
+  ctx.font=(px*scale)+'px "'+family+'"';ctx.textBaseline='alphabetic';ctx.fillStyle='white';const originX=16,baseline=120*scale+15;ctx.fillText(char,originX,baseline);
   const rgba=ctx.getImageData(0,0,w,h).data,mask=createGrid(w,h);for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>90?1:0;
-  if(count(mask)<10)throw Error('Uploaded font did not render pixels. Check the font and text.');
-  const skeleton=skeletonize(mask),traced=traceSkeleton(skeleton);if(!traced.length)throw Error('No centerline paths could be traced. Try a bolder, simpler font.');
-  const useful=traced.filter(path=>{let len=0;for(let i=1;i<path.length;i++)len+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);return len>=4;});
-  if(!useful.length)throw Error('The font was too thin or small to create stable centerlines. Try a larger/bolder font.');
-  traceMessage='Automatic raster centerline mode: inspect branch joins and bend radius before printing.';
-  return useful;
+  if(count(mask)>4){const skeleton=skeletonize(mask),traced=traceSkeleton(skeleton);for(const p of traced){let len=0;for(let i=1;i<p.length;i++)len+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);if(len<4)continue;const path=p.map(v=>({x:v.x-originX+cursor,y:v.y}));path.charIndex=ci;path.charValue=char;paths.push(path);}}
+  cursor+=measureCtx.measureText(char).width*scale+4;
+ }
+ if(!paths.length)throw Error('No centerline paths could be traced. Try a bolder, simpler font.');
+ traceMessage='Per-character centerline extraction: inspect script-letter joins and tight branch junctions before printing.';
+ return paths;
 }
 function traceSkeleton(g){
   // Trace the thinned bitmap as a graph. Ignore diagonal links when an
@@ -219,34 +218,16 @@ async function uploadFont(file){
   }finally{uploadBusy=false;}
 }
 function smooth(points){
-  if(points.length<3)return points.map(p=>({...p}));
-  const near=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<.2;
-  const closed=points.length>3&&near(points[0],points[points.length-1]);
-  const src=closed?points.slice(0,-1):points.map(p=>({...p}));
-  if(src.length<3)return points.map(p=>({...p}));
-  function distToSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
-  function rdp(list,tolerance){
-    if(list.length<=2)return list.map(p=>({...p}));
-    const keep=new Uint8Array(list.length);keep[0]=keep[list.length-1]=1;const stack=[[0,list.length-1]];
-    while(stack.length){const [a,b]=stack.pop();let max=tolerance,index=-1;for(let i=a+1;i<b;i++){const d=distToSegment(list[i],list[a],list[b]);if(d>max){max=d;index=i;}}if(index>=0){keep[index]=1;stack.push([a,index],[index,b]);}}
-    return list.filter((_,i)=>keep[i]).map(p=>({...p}));
-  }
-  let reduced;
-  if(!closed)reduced=rdp(src,.65);
-  else{
-    let far=1,max=0;for(let i=1;i<src.length;i++){const d=Math.hypot(src[i].x-src[0].x,src[i].y-src[0].y);if(d>max){max=d;far=i;}}
-    const arc=(a,b)=>{const out=[src[a]];let i=a;while(i!==b&&out.length<=src.length+1){i=(i+1)%src.length;out.push(src[i]);}return out;};
-    const a=rdp(arc(0,far),.65),b=rdp(arc(far,0),.65);reduced=a.concat(b.slice(1,-1));
-  }
-  let smoothPts=reduced;
-  for(let pass=0;pass<2;pass++){
-    if(closed){const next=[];for(let i=0;i<smoothPts.length;i++){const p=smoothPts[i],q=smoothPts[(i+1)%smoothPts.length];next.push({x:.75*p.x+.25*q.x,y:.75*p.y+.25*q.y},{x:.25*p.x+.75*q.x,y:.25*p.y+.75*q.y});}smoothPts=next;}
-    else{const next=[{...smoothPts[0]}];for(let i=0;i<smoothPts.length-1;i++){const p=smoothPts[i],q=smoothPts[i+1];next.push({x:.75*p.x+.25*q.x,y:.75*p.y+.25*q.y},{x:.25*p.x+.75*q.x,y:.25*p.y+.75*q.y});}next.push({...smoothPts[smoothPts.length-1]});smoothPts=next;}
-  }
-  const result=[],step=2,segments=closed?smoothPts.length:smoothPts.length-1;
-  for(let i=0;i<segments;i++){const a=smoothPts[i],b=smoothPts[(i+1)%smoothPts.length],len=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(len/step));for(let k=0;k<n;k++){const t=k/n;result.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});}}
-  if(closed){if(result.length)result.push({...result[0]});}else result.push({...smoothPts[smoothPts.length-1]});
-  return result;
+ if(points.length<3)return points.map(p=>({...p}));
+ const near=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<.2,closed=points.length>3&&near(points[0],points[points.length-1]),src=closed?points.slice(0,-1):points.map(p=>({...p}));
+ if(src.length<3)return points.map(p=>({...p}));
+ const distance=(p,a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);};
+ function rdp(list,tol){if(list.length<=2)return list.map(p=>({...p}));const keep=new Uint8Array(list.length);keep[0]=keep[list.length-1]=1;const stack=[[0,list.length-1]];while(stack.length){const [a,b]=stack.pop();let far=tol,ix=-1;for(let i=a+1;i<b;i++){const d=distance(list[i],list[a],list[b]);if(d>far){far=d;ix=i;}}if(ix>=0){keep[ix]=1;stack.push([a,ix],[ix,b]);}}return list.filter((_,i)=>keep[i]).map(p=>({...p}));}
+ let reduced;if(!closed)reduced=rdp(src,1.35);
+ else{let far=1,max=0;for(let i=1;i<src.length;i++){const d=Math.hypot(src[i].x-src[0].x,src[i].y-src[0].y);if(d>max){max=d;far=i;}}const arc=(a,b)=>{const out=[src[a]];let i=a;while(i!==b&&out.length<=src.length+1){i=(i+1)%src.length;out.push(src[i]);}return out;};const a=rdp(arc(0,far),1.35),b=rdp(arc(far,0),1.35);reduced=a.concat(b.slice(1,-1));}
+ let pts=reduced;for(let pass=0;pass<3;pass++){if(closed){const next=[];for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length];next.push({x:.75*p.x+.25*q.x,y:.75*p.y+.25*q.y},{x:.25*p.x+.75*q.x,y:.25*p.y+.75*q.y});}pts=next;}else{const next=[{...pts[0]}];for(let i=0;i<pts.length-1;i++){const p=pts[i],q=pts[i+1];next.push({x:.75*p.x+.25*q.x,y:.75*p.y+.25*q.y},{x:.25*p.x+.75*q.x,y:.25*p.y+.75*q.y});}next.push({...pts.at(-1)});pts=next;}}
+ const out=[],step=2.5,nseg=closed?pts.length:pts.length-1;for(let i=0;i<nseg;i++){const a=pts[i],b=pts[(i+1)%pts.length],len=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(len/step));for(let k=0;k<n;k++){const t=k/n;out.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});}}
+ if(closed){if(out.length)out.push({...out[0]});}else out.push({...pts.at(-1)});return out;
 }
 function shapePaths(){return shapes.map(s=>{const p=[];const n=s.kind==='line'?2:Math.max(32,Math.ceil(Math.max(s.w,s.h)/3)),count=s.kind==='arc'?n: n;for(let i=0;i<count;i++){let x,y,t=i/(count-1);if(s.kind==='line'){x=(t-.5)*s.w;y=0;}else if(s.kind==='rectangle'){const d=t*4;const a=Math.floor(d)%4,u=d-a;const edges=[[-.5+u,-.5],[.5,-.5+u],[.5-u,.5],[-.5,.5-u]];[x,y]=edges[a];x*=s.w;y*=s.h;}else{const ang=(s.kind==='arc'?Math.PI*(1-t):2*Math.PI*t);x=Math.cos(ang)*s.w*.5;y=Math.sin(ang)*s.h*.5;}p.push({x:s.x+x,y:s.y+y});}if(s.kind==='circle'||s.kind==='ellipse'||s.kind==='rectangle')p.push({...p[0]});return p;});}
 function allPaths(){return [...lines,...shapePaths()].filter(p=>p.length>1);}
@@ -308,11 +289,7 @@ function swept(points,profile){
   }
   return triangles;
 }
-function channelProfile(o){
-  if(!o.backing)return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];
-  const ext=o.outer/2+o.pad,b=o.backingHeight,h=o.height,f=o.floor;
-  return [[-ext,0],[ext,0],[ext,b],[o.outer/2,b],[o.outer/2,b+h],[o.inner/2,b+h],[o.inner/2,b+f],[-o.inner/2,b+f],[-o.inner/2,b+h],[-o.outer/2,b+h],[-o.outer/2,b],[-ext,b]];
-}
+function channelProfile(o){return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];}
 function solidProfile(width,height){return [[-width/2,0],[width/2,0],[width/2,height],[-width/2,height]];}
 function stlBinary(tris){const bytes=new ArrayBuffer(84+tris.length*50),v=new DataView(bytes);v.setUint32(80,tris.length,true);let offset=84;for(const t of tris){const [a,b,c]=t,A=b.map((x,i)=>x-a[i]),B=c.map((x,i)=>x-a[i]),N=[A[1]*B[2]-A[2]*B[1],A[2]*B[0]-A[0]*B[2],A[0]*B[1]-A[1]*B[0]],l=Math.hypot(...N)||1;for(const x of N)v.setFloat32(offset,(x/l)||0,true),offset+=4;for(const vertex of t)for(const x of vertex)v.setFloat32(offset,x,true),offset+=4;v.setUint16(offset,0,true);offset+=2;}return new Uint8Array(bytes);}
 function crc32(bytes){let c=~0;for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xedb88320:c>>>1;}return(~c)>>>0;}
@@ -366,6 +343,50 @@ function splitForBed(paths,bx,by,extent){
   return {pieces,cols,rows,left,top,tileW:w,tileH:h,extent};
 }
 
+function edgePoints(start,end,outward,enabled,gender,joint,depth,rootWidth){
+ const dx=end[0]-start[0],dy=end[1]-start[1],len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,point=t=>[start[0]+ux*t,start[1]+uy*t];
+ if(!enabled||len<rootWidth+16)return [start,end];
+ const root=Math.min(rootWidth,len*.34),t0=(len-root)/2,t1=t0+root,flare=joint==='dovetail'?Math.min(4,root*.18):Math.min(3,root*.14),sign=gender==='male'?1:-1,nx=outward[0]*sign,ny=outward[1]*sign,off=(t,d)=>{const p=point(t);return [p[0]+nx*d,p[1]+ny*d];};
+ if(joint==='puzzle')return [start,point(t0),off(t0,depth*.45),off(t0-flare,depth*.45),off(t0-flare,depth),off(t1+flare,depth),off(t1+flare,depth*.45),off(t1,depth*.45),point(t1),end];
+ return [start,point(t0),off(t0-flare,depth),off(t1+flare,depth),point(t1),end];
+}
+function tileOutline(col,row,cols,rows,w,h,joint,depth,rootWidth){
+ const p=(col+row)%2,edges=[{a:[0,0],b:[w,0],n:[0,-1],has:row>0,male:p===1},{a:[w,0],b:[w,h],n:[1,0],has:col<cols-1,male:p===0},{a:[w,h],b:[0,h],n:[0,1],has:row<rows-1,male:p===0},{a:[0,h],b:[0,0],n:[-1,0],has:col>0,male:p===1}],poly=[];
+ for(const e of edges){const pts=edgePoints(e.a,e.b,e.n,e.has,e.male?'male':'female',joint,depth,rootWidth);poly.push(...pts.slice(0,-1));}return poly;
+}
+function splitForBackplane(paths,bedW,bedH,tileW,tileH,margin){
+ const depth=+$('jointDepth').value||8,joint=$('jointStyle').value;
+ if(tileW<100||tileH<100)throw Error('Backplane tiles must be at least 100 × 100 mm.');
+ if(depth<5||depth>15)throw Error('Connector depth must be between 5 and 15 mm.');
+ if(tileW+depth+2>bedW||tileH+depth+2>bedH)throw Error('Backplane tile plus connector must fit the selected printer bed. Reduce tile size or choose a larger bed.');
+ const pts=paths.flat();if(!pts.length)throw Error('No centerline paths to tile.');
+ const minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y)),spanX=maxX-minX,spanY=maxY-minY;
+ const cols=Math.max(1,Math.ceil((spanX+2*margin)/tileW)),rows=Math.max(1,Math.ceil((spanY+2*margin)/tileH));if(cols*rows>120)throw Error('More than 120 backplane tiles required; increase tile size or reduce sign width.');
+ const left=minX-(cols*tileW-spanX)/2,top=minY-(rows*tileH-spanY)/2,pieces=[];
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const x0=left+col*tileW,y0=top+row*tileH,rect=[x0,y0,x0+tileW,y0+tileH];for(let pi=0;pi<paths.length;pi++){let seg=0;for(const path of clipPath(paths[pi],rect))if(path.length>1)pieces.push({path:path.map(p=>({x:p.x-x0,y:p.y-y0})),tileX:col+1,tileY:row+1,strokeIndex:pi+1,segmentIndex:++seg});}}
+ return {pieces,cols,rows,left,top,tileW,tileH,extent:0,backplane:true,joint,depth};
+}
+const PART_ID_STROKES={'0':[[0,0,3.8,0],[3.8,0,3.8,5],[3.8,5,0,5],[0,5,0,0]],'1':[[2,0,2,5],[.5,4.8,2,5]],'2':[[0,0,3.8,0],[3.8,0,3.8,2.4],[3.8,2.4,0,2.6],[0,2.6,0,5],[0,5,3.8,5]],'3':[[0,0,3.8,0],[3.8,0,3.8,5],[0,2.5,3.8,2.5],[0,5,3.8,5]],'4':[[0,0,0,2.5],[0,2.5,3.8,2.5],[3.8,0,3.8,5]],'5':[[3.8,0,0,0],[0,0,0,2.5],[0,2.5,3.8,2.5],[3.8,2.5,3.8,5],[3.8,5,0,5]],'6':[[3.8,0,0,0],[0,0,0,5],[0,2.5,3.8,2.5],[3.8,2.5,3.8,5],[3.8,5,0,5]],'7':[[0,0,3.8,0],[3.8,0,1,5]],'8':[[0,0,3.8,0],[3.8,0,3.8,5],[3.8,5,0,5],[0,5,0,0],[0,2.5,3.8,2.5]],'9':[[3.8,5,3.8,0],[3.8,0,0,0],[0,0,0,2.5],[0,2.5,3.8,2.5]],'T':[[0,0,3.8,0],[1.9,0,1.9,5]],'-':[[.5,2.5,3.2,2.5]]};
+function tileLabelTriangles(name,z0){const out=[],prof=solidProfile(.9,.75),sx=7,sy=7,step=5;for(let i=0;i<name.length;i++)for(const [x1,y1,x2,y2]of PART_ID_STROKES[name[i]]||[]){const p=[{x:sx+i*step+x1,y:sy+y1},{x:sx+i*step+x2,y:sy+y2}];for(const t of swept(p,prof))out.push(t.map(v=>[v[0],v[1],v[2]+z0]));}return out;}
+function buildModelData(){
+ const o=opts(),bedW=+$('bedW').value,bedH=+$('bedH').value,paths=allPaths();if(o.height<=o.floor)throw Error('Channel height must exceed floor thickness.');if(o.mountStyle!=='none'&&!o.backing)throw Error('Mount accessories require the backplane.');
+ if(o.backing){
+  const tw=+$('backplaneW').value,th=+$('backplaneH').value,reach=o.mountStyle==='eyelets'?41:o.mountStyle==='posts'?32:o.mountStyle==='keyholes'?35:0,margin=Math.max(o.outer/2+5,reach+6);
+  if(!Number.isFinite(tw)||!Number.isFinite(th))throw Error('Enter valid backplane tile dimensions.');
+  const split=splitForBackplane(paths,bedW,bedH,tw,th,margin),parts=[],mounts=[],anchors=o.mountStyle==='none'?[]:mountAnchors(paths,o.mountStyle==='posts'?4:2),panelProfile={...o,backing:false};
+  if(+$('jointWidth').value<16||+$('jointWidth').value>40)throw Error('Connector width must be between 16 and 40 mm.');
+  for(let row=0;row<split.rows;row++)for(let col=0;col<split.cols;col++){
+   const id='T'+String(row+1).padStart(2,'0')+'-'+String(col+1).padStart(2,'0'),panelTriangles=extrudedPolygon(tileOutline(col,row,split.cols,split.rows,tw,th,split.joint,split.depth,+$('jointWidth').value||24),0,o.backingHeight),channelTriangles=[];
+   for(const p of split.pieces.filter(p=>p.tileX===col+1&&p.tileY===row+1)){const ch=swept(p.path,channelProfile(panelProfile));channelTriangles.push(...ch.map(t=>t.map(v=>[v[0],v[1],v[2]+o.backingHeight-.05])));}
+   const labelTriangles=$('embossIds').checked?tileLabelTriangles(id,o.backingHeight):[];
+   parts.push({name:id,triangles:[...panelTriangles,...channelTriangles,...labelTriangles],meshes:[{name:id+' backplane',triangles:panelTriangles,color:row%2?'#8d9bad':'#a9b5c6'},{name:id+' channels',triangles:channelTriangles,color:'#4e5e77'},...(labelTriangles.length?[{name:id+' embossed ID',triangles:labelTriangles,color:'#d1b0ff'}]:[])],color:row%2?'#8d9bad':'#a9b5c6',dx:col*tw,dy:row*th,tileX:col+1,tileY:row+1});
+  }
+  for(let i=0;i<anchors.length;i++){const a=anchors[i],loc=tileForMount(a,split),anchor={...a,x:loc.x,y:loc.y};for(const part of mountPartsFor(o.mountStyle,anchor))mounts.push({name:part.suffix+'-'+(i+1),triangles:part.triangles,color:'#d6a663',dx:(loc.tileX-1)*tw,dy:(loc.tileY-1)*th,tileX:loc.tileX,tileY:loc.tileY});}
+  return {o,paths,split,parts,mounts,anchors,bedW,bedH,backplane:true};
+ }
+ const extent=Math.max(o.outer/2,5)+3,split=splitForBed(paths,bedW,bedH,extent),parts=[];for(const p of split.pieces)parts.push({name:'stroke-'+String(p.strokeIndex).padStart(3,'0')+'-'+p.tileX+'-'+p.tileY,triangles:swept(p.path,channelProfile({...o,backing:false})),color:'#a9b5c6',dx:(p.tileX-1)*split.tileW,dy:(p.tileY-1)*split.tileH,tileX:p.tileX,tileY:p.tileY});
+ return {o,paths,split,parts,mounts:[],anchors:[],bedW,bedH,backplane:false};
+}
 function polygonArea(poly){let a=0;for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length];a+=p[0]*q[1]-q[0]*p[1];}return a/2;}
 function extrudedPolygon(raw,z0,z1){
  let p=raw.map(q=>[q[0],q[1]]);if(p.length>2&&Math.hypot(p[0][0]-p.at(-1)[0],p[0][1]-p.at(-1)[1])<1e-5)p.pop();
@@ -419,38 +440,26 @@ function crossSectionSVG(o){
  return '<svg xmlns="http://www.w3.org/2000/svg" width="940" height="390" viewBox="0 0 940 390"><rect width="940" height="390" fill="#fff"/><text x="28" y="34" font-family="Arial" font-size="22" font-weight="700" fill="#151827">Channel / backplane connection</text><text x="28" y="57" font-family="Arial" font-size="12" fill="#50586d">'+(o.backing?'Integrated profile: channel walls, floor and backplane are one swept cross-section.':'Channel-only mode: no backplane flange.')+'</text><rect x="250" y="240" width="440" height="32" rx="2" fill="#9da8b8" stroke="#343b4b" stroke-width="2"/><rect x="350" y="150" width="42" height="90" fill="#3e4554" stroke="#202531" stroke-width="2"/><rect x="548" y="150" width="42" height="90" fill="#3e4554" stroke="#202531" stroke-width="2"/><rect x="392" y="220" width="156" height="20" fill="#3e4554" stroke="#202531" stroke-width="2"/><rect x="400" y="175" width="140" height="40" rx="8" fill="#36d8e8" stroke="#138a98" stroke-width="2"/><path d="M350 140 L350 126 L590 126 L590 140" stroke="#bb9af7" stroke-width="4" fill="none"/><text x="470" y="112" text-anchor="middle" font-family="Arial" font-size="14" font-weight="700" fill="#7150a8">LED flex sits inside channel</text><path d="M612 172 L710 142 L780 142" stroke="#424a5b" stroke-width="1.5" fill="none"/><text x="790" y="146" font-family="Arial" font-size="13" fill="#202638">Channel wall</text><path d="M500 230 L500 302 L660 302" stroke="#424a5b" stroke-width="1.5" fill="none"/><text x="670" y="306" font-family="Arial" font-size="13" fill="#202638">Floor '+o.floor+' mm</text><path d="M650 255 L725 330 L780 330" stroke="#424a5b" stroke-width="1.5" fill="none"/><text x="790" y="334" font-family="Arial" font-size="13" fill="#202638">Backplane '+(o.backing?o.backingHeight+' mm':'off')+'</text><text x="28" y="360" font-family="Arial" font-size="12" fill="#50586d">Schematic only—not to scale. Mount accessories are separate STLs; verify clearances.</text></svg>';
 }
 function buildGuideText(o,bx,by,split,paths){
- let mounting='No mounting accessories were generated.';
- if(o.mountStyle==='keyholes')mounting='Keyhole tabs are in mounts/. These have an open keyway, not a load-rated fastener. Orient the round entry toward the screw head and slide the narrow slot over the shank. Attach tabs to the backplane underside and test with the actual screw/anchor.';
- if(o.mountStyle==='eyelets')mounting='Eyelet brackets are in mounts/ as one STL per hanger. Each bracket combines a narrow tab with a ring whose through-opening remains clear. Check the slicer treats the intersecting shells as one solid, then dry-fit/bond the bracket to the rear backing. Pass chain/cord through the ring and verify actual hardware dimensions and load.';
- if(o.mountStyle==='posts')mounting='Wall standoff tubes and attachment tabs are separate STL parts. Attach tabs to the backing, then fit screws appropriate for the wall. The generator does not drill screw holes through the sign backing; locate and drill after a physical fit test.';
- return ['PRINTEDCRAFTS LEDSign — BUILD / ASSEMBLY GUIDE','Units: millimetres','Print bed: '+bx+' × '+by+' mm; tiles: '+split.cols+' columns × '+split.rows+' rows','Channel sections: '+split.pieces.length+'; centreline paths: '+paths.length+'; mounting: '+o.mountStyle,'','ZIP CONTENTS','- channels/: smooth channel sections. With integrated mode enabled, each channel STL includes its backing flange fused to the channel wall/floor as one swept profile.','- mounts/: optional keyway tabs, eyelets or wall standoffs. Mount accessories are separate pieces; dry-fit and attach them to the backing.','- rear-wire-raceways/: separate open-back raceways, if routes were created.','- ASSEMBLY-GUIDE.svg: bed-tile map. T01-01 is row 1 / column 1; colours distinguish paths, orange markers approximate mount locations.','- CHANNEL-CROSS-SECTION.svg: channel/backplane schematic.','- README-PRINTING.txt: this document.','','ASSEMBLY ORDER','1. Open ASSEMBLY-GUIDE.svg beside the STL folder. Arrange pieces by tile-X/tile-Y in file names, then dry-fit the complete word on a flat surface.','2. Print integrated channel/backplane parts with the flat underside on the build plate. Channel and flange are connected in one profile, not two loose layers. Print a short fit coupon first.','3. Tile ends are flat butt joints. Align to the map, bond ends and add a rear bridge/strap where appropriate. This version has no dovetails, pins or snap locks; do not hang a sign relying only on small butt joints.','4. Lay LED flex in the channel from an accessible end. Respect the maker minimum bend radius and cut marks. Wiring holes are not automatically modelled.','5. Fit a diffuser/cover only after a physical fit test; this tool does not export a diffuser cap.','6. Install rear raceways if present. They are separate and not boolean-cut into the backing. Use insulated wiring and strain relief.','7. Attach mounting accessories. These are separate STLs; verify hardware fit and the load path before installing.','8. Dry-fit the sign and test electrical connections before mounting.','','MOUNTING OPTION — '+o.mountStyle.toUpperCase(),mounting,'Orange markers are approximate positions, not certified load points. Relocate mounts in CAD/assembly to clear channels and distribute the load.','','QUALITY CHECKS','- Inspect STLs for non-manifold edges, missing faces, self-intersections, and build-bed fit.','- Verify LED opening clearance, channel wall/floor thickness, minimum bend radius and tile alignment.','- Smoothing reduces raster wobble but does not fix every font branch or ambiguous join.','- Use appropriate wall anchors, adhesive, insulation, strain relief and a rated power supply.','','Experimental fabrication software; no load certification, automatic dovetails, diffuser cap or manufacturer-validated retention is included.'].join('\n');
+ const mounting=o.mountStyle==='none'?'No mounting accessories were generated.':o.mountStyle==='keyholes'?'Keyway hanger tabs are separate STLs. Align tabs to orange marks and attach to the backplane underside. Confirm screw and anchor fit; this is not a load-rated fastener.':o.mountStyle==='eyelets'?'Eyelet brackets are separate STL parts. Attach to the backplane and check ring/chain fit and actual hanging load.':'Wall standoff posts and tabs are separate STL parts. Attach to the rear; the sign panel has no automatically drilled screw holes.';
+ return ['PRINTEDCRAFTS LEDSign — BUILD / ASSEMBLY GUIDE','Units: millimetres','Selected printer bed: '+bx+' × '+by+' mm','Backplane tiles: '+(split.backplane?split.cols+' columns × '+split.rows+' rows, nominal '+split.tileW+' × '+split.tileH+' mm.':'not enabled.'),'Centerline path count: '+paths.length,'','CONTENTS','- backplanes/: tile assembly STL with panel, channel geometry and optional embossed ID. Slicer preview should merge the intersecting shells into one body.','- mounts/: optional separate mounting accessories. Attach after fit-check.','- rear-wire-raceways/: separate open-back raceways if routes were added.','- ASSEMBLY-GUIDE.svg: tile map with colour-coded paths and mounting marks. T01-01 is row 1, column 1.','- CHANNEL-CROSS-SECTION.svg: channel/backplane schematic.','','ASSEMBLY','1. Arrange tiles by row/column in ASSEMBLY-GUIDE.svg. Dovetail/puzzle edges are complementary; dry-fit every joint before bonding.','2. Print tiles flat on the plain backplane side. Tiles are at least 100 × 100 mm; connector overhang must fit the selected printer bed.','3. Each tile STL has a plate and channel geometry that overlaps the plate top by 0.05 mm to help the slicer fuse them. Confirm the slicer shows one connected body.','4. Align adjoining tiles and verify channel ends meet at seams. Do not hang a sign relying only on small butt joints.','5. Embossed tile IDs, if enabled, are raised single-line strokes near one corner of each tile.','6. Mount accessories are separate STLs; attach them to strong panel areas and check real screws/chains and load path.','7. Rear wire raceways are separate pieces; feed-through holes are not automatically modelled. Use insulated wire and strain relief.','8. Check the LED minimum bend radius and cut marks. No diffuser cap is generated by this version.','','MOUNTING — '+o.mountStyle.toUpperCase(),mounting,'','QUALITY CONTROL','- Inspect each STL for non-manifold edges, self-intersections and printer-bed clearance.','- Check actual LED opening, branch joins, tile joint fit, and mount hardware in a slicer.','- Font skeleton smoothing is heuristic; script fonts and branches may need manual correction.','- Use suitable wall anchors, insulation, strain relief, heat management and a rated power supply. This is experimental, not electrical/structural certification.'].join('\n');
 }
-
 async function generate(){
- if(fontPreviewOnly){status('Cannot generate STL: '+(traceMessage||'font centerline extraction did not complete')+'. Please review paths.',true);return;}
+ if(fontPreviewOnly){status('Cannot generate STL: '+(traceMessage||'font centerline extraction did not complete')+'. Review the font and paths.',true);return;}
  try{
-  if(!lines.length)throw Error('No lettering paths');
-  const o=opts(),bx=+$('bedW').value,by=+$('bedH').value;if(!Number.isFinite(bx)||!Number.isFinite(by)||bx<50||by<50)throw Error('Enter valid build plate dimensions.');
-  if(o.height<=o.floor)throw Error('Channel height must exceed floor thickness.');
-  if(o.mountStyle!=='none'&&!o.backing)throw Error('Enable the integrated backplane before exporting mounting accessories.');
-  const mountReach=o.mountStyle==='eyelets'?41:o.mountStyle==='posts'?32:o.mountStyle==='keyholes'?35:0,extent=Math.max(o.outer/2,(o.outer+2*o.pad)/2,mountReach)+3,paths=allPaths(),split=splitForBed(paths,bx,by,extent),files=[];
-  if(!split.pieces.length)throw Error('Nothing to export.');
-  $('generate').disabled=true;status('Preparing smooth channel/backplane sections…');await nextFrame();
-  for(let i=0;i<split.pieces.length;i++){const p=split.pieces[i],name='tile-'+p.tileX+'-'+p.tileY+'-stroke-'+String(p.strokeIndex).padStart(3,'0')+'-section-'+String(p.segmentIndex).padStart(2,'0');files.push(['channels/'+name+'.stl',stlBinary(swept(p.path,channelProfile(o)))]);if(i%3===0){status('Generating '+(i+1)+' / '+split.pieces.length+' channel/backplane parts…');await nextFrame();}}
-  const anchors=o.mountStyle==='none'?[]:mountAnchors(paths,o.mountStyle==='posts'?4:2);
-  for(let i=0;i<anchors.length;i++){const a=anchors[i],tile=tileForMount(a,split),anchor={...a,x:tile.x,y:tile.y};for(const part of mountPartsFor(o.mountStyle,anchor)){const name='tile-'+tile.tileX+'-'+tile.tileY+'-'+part.suffix+'-'+String(i+1).padStart(2,'0');files.push(['mounts/'+name+'.stl',stlBinary(part.triangles)]);}}
-  if(o.mountStyle!=='none'&&!anchors.length)throw Error('Could not find mount anchor positions for these paths.');
+  const model=buildModelData(),{o,paths,split,parts,mounts,anchors,bedW,bedH,backplane}=model,files=[];
+  $('generate').disabled=true;status('Preparing smoothed model and interlocking tiles…');await nextFrame();
+  if(backplane){for(let i=0;i<parts.length;i++){const p=parts[i];files.push(['backplanes/tile-'+p.name.toLowerCase()+'-assembly.stl',stlBinary(p.triangles)]);if(i%2===0){status('Building tile '+(i+1)+' / '+parts.length+'…');await nextFrame();}}}
+  else for(const p of parts)files.push(['channels/'+p.name+'.stl',stlBinary(p.triangles)]);
+  for(const m of mounts)files.push(['mounts/'+m.name+'.stl',stlBinary(m.triangles)]);
   const wireWidth=+$('wireWidth').value,wireWall=+$('wireWall').value,wireDepth=+$('wireDepth').value;
   if(wireRoutes.length&&(!Number.isFinite(wireWidth)||wireWidth<1||!Number.isFinite(wireWall)||wireWall<1||!Number.isFinite(wireDepth)||wireDepth<=wireWall))throw Error('Rear raceway dimensions are invalid. Depth must exceed wall thickness.');
   if(wireDraft.length)throw Error('Finish or undo the unfinished rear wire route before exporting.');
-  if(wireRoutes.length){const wireSplit=splitForBed(wireRoutes,bx,by,(wireWidth+wireWall*2)/2+3);for(let i=0;i<wireSplit.pieces.length;i++){const p=wireSplit.pieces[i],name='route-'+String(i+1).padStart(3,'0')+'-tile-'+p.tileX+'-'+p.tileY;files.push(['rear-wire-raceways/'+name+'.stl',stlBinary(swept(p.path,rearRacewayProfile(wireWidth,wireWall,wireDepth)))]);}}
-  files.push(['README-PRINTING.txt',buildGuideText(o,bx,by,split,paths)]);
-  files.push(['ASSEMBLY-GUIDE.svg',assemblyGuideSVG(split,bx,by,anchors,o.mountStyle)]);
-  files.push(['CHANNEL-CROSS-SECTION.svg',crossSectionSVG(o)]);
-  downloadBlob=zip(files);$('download').disabled=false;const count=files.filter(f=>f[0].toLowerCase().endsWith('.stl')).length;
-  status('Generated '+count+' STL part(s) and 3 guide files. '+split.cols+' × '+split.rows+' bed tiles. Inspect in your slicer before printing.');
+  if(wireRoutes.length){const ws=splitForBed(wireRoutes,bedW,bedH,(wireWidth+wireWall*2)/2+3);for(let i=0;i<ws.pieces.length;i++){const p=ws.pieces[i],name='route-'+String(i+1).padStart(3,'0')+'-tile-'+p.tileX+'-'+p.tileY;files.push(['rear-wire-raceways/'+name+'.stl',stlBinary(swept(p.path,rearRacewayProfile(wireWidth,wireWall,wireDepth)))]);}}
+  files.push(['README-PRINTING.txt',buildGuideText(o,bedW,bedH,split,paths)]);files.push(['ASSEMBLY-GUIDE.svg',assemblyGuideSVG(split,split.tileW||bedW,split.tileH||bedH,anchors,o.mountStyle)]);files.push(['CHANNEL-CROSS-SECTION.svg',crossSectionSVG(o)]);
+  downloadBlob=zip(files);$('download').disabled=false;const count=files.filter(f=>f[0].toLowerCase().endsWith('.stl')).length;status('Generated '+count+' STL part(s) and 3 guide files. '+(backplane?split.cols+' × '+split.rows+' interlocking backplane tiles, each at least 100 × 100 mm.':'Channel-only export.')+' Inspect in a slicer before printing.');
  }catch(e){status('Generation failed: '+e.message,true);}finally{$('generate').disabled=false;}
 }
+window.LEDSignGet3DModel=()=>buildModelData();
 function download(){if(!downloadBlob)return;const url=URL.createObjectURL(downloadBlob),a=document.createElement('a');a.href=url;a.download='LEDSign-printable-channels.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
 let pointer=null;
 function world(e){const svg=$('preview'),pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return {x:0,y:0};const v=pt.matrixTransform(m.inverse());return {x:(v.x-scene.tx)/scene.scale,y:(v.y-scene.ty)/scene.scale};}
@@ -467,6 +476,6 @@ function alignSelected(axis){
  if(axis==='middle')s.y=(minY+maxY)/2;
  invalidate();
 }
-function wire(){for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).onclick=()=>{if(mode==='waypoint'&&!wireDraft.length){status('Set route Start first.',true);return;}if(mode==='end'&&!wireDraft.length){status('Set route Start first.',true);return;}wireMode=mode;updateWireUI();};$('routeUndo').onclick=()=>{if(wireDraft.length)wireDraft.pop();else if(wireRoutes.length)wireDraft=wireRoutes.pop().slice(0,-1);wireMode=wireDraft.length?'end':'start';updateWireUI();invalidate();};$('routeDelete').onclick=()=>{if(wireRoutes.length)wireRoutes.splice(selectedWireRoute>=0?selectedWireRoute:wireRoutes.length-1,1);selectedWireRoute=-1;updateWireUI();invalidate();};$('routeClear').onclick=()=>{wireRoutes=[];wireDraft=[];wireMode='';selectedWireRoute=-1;updateWireUI();invalidate();};for(const id of ['wireWidth','wireWall','wireDepth'])$(id).addEventListener('input',invalidate);$('preview').addEventListener('click',e=>{if(drawing){if(e.target.hasAttribute('data-shape')||e.target.hasAttribute('data-resize'))return;draftLed.push(world(e));invalidate();status(`Routing section ${lines.length+1}: ${draftLed.length} points. Click Finish section when complete.`);return;}if(!wireMode)return;try{addWirePoint(world(e));}catch(err){status(err.message,true);}});for(const id of ['text','width'])$(id).addEventListener('input',()=>{if(manualMode&&lines.length){lines=[];draftLed=[];drawing=false;status('Font dimensions changed; previous LED routes cleared to prevent scaling mismatch.');}buildLines();});for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',()=>{manualMode=false;lines=[];draftLed=[];drawing=false;buildLines();});$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);for(const id of ['letterSpacing','pairAfter','pairSpacing'])$(id).addEventListener('input',()=>{if(!manualMode)buildLines();else status('Kerning changes apply to automatic tracing; click Auto-trace to reapply them.');});$('autoTrace').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a TTF/OTF font first to auto-trace its centerline.',true);return;}manualMode=false;drawing=false;draftLed=[];buildLines();};$('manualBegin').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a font first.',true);return;}if(!manualMode){manualMode=true;lines=[];draftLed=[];invalidate();}drawing=true;wireMode='';status('Manual correction mode: click the center of each intended LED stroke. Finish each disconnected section separately.');};$('manualFinish').onclick=()=>{if(draftLed.length>=2){lines.push(draftLed.slice());draftLed=[];drawing=false;fontPreviewOnly=false;invalidate();status(`${lines.length} LED section(s) ready for STL. Add another section as needed.`);}else status('Select at least two centerline points before finishing.',true);};$('manualUndo').onclick=()=>{draftLed.pop();invalidate();};$('manualClear').onclick=()=>{lines=[];draftLed=[];drawing=false;invalidate();status('LED paths cleared. Font remains as a reference.');};$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
+function wire(){for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).onclick=()=>{if(mode==='waypoint'&&!wireDraft.length){status('Set route Start first.',true);return;}if(mode==='end'&&!wireDraft.length){status('Set route Start first.',true);return;}wireMode=mode;updateWireUI();};$('routeUndo').onclick=()=>{if(wireDraft.length)wireDraft.pop();else if(wireRoutes.length)wireDraft=wireRoutes.pop().slice(0,-1);wireMode=wireDraft.length?'end':'start';updateWireUI();invalidate();};$('routeDelete').onclick=()=>{if(wireRoutes.length)wireRoutes.splice(selectedWireRoute>=0?selectedWireRoute:wireRoutes.length-1,1);selectedWireRoute=-1;updateWireUI();invalidate();};$('routeClear').onclick=()=>{wireRoutes=[];wireDraft=[];wireMode='';selectedWireRoute=-1;updateWireUI();invalidate();};for(const id of ['wireWidth','wireWall','wireDepth'])$(id).addEventListener('input',invalidate);$('preview').addEventListener('click',e=>{if(drawing){if(e.target.hasAttribute('data-shape')||e.target.hasAttribute('data-resize'))return;draftLed.push(world(e));invalidate();status(`Routing section ${lines.length+1}: ${draftLed.length} points. Click Finish section when complete.`);return;}if(!wireMode)return;try{addWirePoint(world(e));}catch(err){status(err.message,true);}});for(const id of ['text','width'])$(id).addEventListener('input',()=>{if(manualMode&&lines.length){lines=[];draftLed=[];drawing=false;status('Font dimensions changed; previous LED routes cleared to prevent scaling mismatch.');}buildLines();});for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',()=>{manualMode=false;lines=[];draftLed=[];drawing=false;buildLines();});$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);for(const id of ['letterSpacing','pairAfter','pairSpacing'])$(id).addEventListener('input',()=>{if(!manualMode)buildLines();else status('Kerning changes apply to automatic tracing; click Auto-trace to reapply them.');});for(const id of ['letterFrom','letterTo','groupOffsetX','groupOffsetY'])$(id).addEventListener('input',()=>{labels();if(!manualMode)buildLines();});$('resetGroup').onclick=()=>{$('groupOffsetX').value=0;$('groupOffsetY').value=0;labels();if(!manualMode)buildLines();};$('autoTrace').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a TTF/OTF font first to auto-trace its centerline.',true);return;}manualMode=false;drawing=false;draftLed=[];buildLines();};$('manualBegin').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a font first.',true);return;}if(!manualMode){manualMode=true;lines=[];draftLed=[];invalidate();}drawing=true;wireMode='';status('Manual correction mode: click the center of each intended LED stroke. Finish each disconnected section separately.');};$('manualFinish').onclick=()=>{if(draftLed.length>=2){lines.push(draftLed.slice());draftLed=[];drawing=false;fontPreviewOnly=false;invalidate();status(`${lines.length} LED section(s) ready for STL. Add another section as needed.`);}else status('Select at least two centerline points before finishing.',true);};$('manualUndo').onclick=()=>{draftLed.pop();invalidate();};$('manualClear').onclick=()=>{lines=[];draftLed=[];drawing=false;invalidate();status('LED paths cleared. Font remains as a reference.');};$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
 window.addEventListener('error',e=>status(`Application error: ${e.message}`,true));
 wire();buildLines();updateWireUI();
