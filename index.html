@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LEDSign Studio v4.0 — True Neon Path Generator</title>
+    <title>LEDSign Studio v5.0 — Integrated LED Neon Sign Generator</title>
     <style>
         :root {
             --bg-color: #0b0d12;
@@ -20,7 +20,7 @@
 
         /* Sidebar Control Panel */
         #sidebar {
-            width: 440px;
+            width: 450px;
             background-color: var(--panel-bg);
             border-right: 1px solid var(--border-color);
             display: flex;
@@ -33,7 +33,7 @@
         .header h1 { font-size: 1.25rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .header p { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
-        /* Unit Switcher Button Group */
+        /* Unit Switcher */
         .unit-toggle {
             display: flex;
             background: var(--bg-color);
@@ -42,7 +42,7 @@
             overflow: hidden;
         }
         .unit-btn {
-            padding: 5px 10px;
+            padding: 5px 12px;
             font-size: 0.75rem;
             font-weight: 600;
             color: var(--text-muted);
@@ -65,11 +65,11 @@
         .form-group label { display: block; font-size: 0.82rem; color: var(--text-main); margin-bottom: 5px; font-weight: 500; }
         .form-group label span { float: right; color: var(--text-muted); font-weight: normal; }
 
-        textarea, select, input[type="text"] {
+        textarea, select, input[type="number"], input[type="text"] {
             width: 100%; padding: 9px 11px; background: var(--bg-color); border: 1px solid var(--border-color);
             border-radius: 6px; color: #fff; font-size: 0.88rem; transition: border 0.2s; resize: vertical;
         }
-        textarea:focus, select:focus, input[type="text"]:focus { border-color: var(--accent-color); outline: none; }
+        textarea:focus, select:focus, input[type="number"]:focus { border-color: var(--accent-color); outline: none; }
 
         input[type="range"] {
             width: 100%; -webkit-appearance: none; background: var(--bg-color); height: 6px; border-radius: 3px; outline: none;
@@ -116,7 +116,7 @@
         <div class="header">
             <div>
                 <h1>LEDSign Studio</h1>
-                <p>True Neon Path Geometry Generator</p>
+                <p>Integrated LED Neon Sign Generator</p>
             </div>
             <div class="unit-toggle">
                 <button class="unit-btn active" id="unit-mm" onclick="setUnits('mm')">mm</button>
@@ -125,88 +125,105 @@
         </div>
 
         <div class="controls-container">
-            <div class="section-title">Sign Dimensions & Outline</div>
+            <div class="section-title">1. Sign Dimensions & Base Shape</div>
             <div class="form-group">
-                <label for="sign-width">Overall Width <span id="val-sign-width">400 mm</span></label>
-                <input type="range" id="sign-width" min="150" max="1200" value="400">
+                <label for="sign-width">Sign Target Width <span id="val-sign-width">400 mm</span></label>
+                <input type="number" id="sign-width" value="400" min="50" max="5000" step="10">
             </div>
             <div class="form-group">
                 <label for="base-shape">Backplate Shape Style</label>
                 <select id="base-shape">
-                    <option value="contour">Contour / Cut to Letter Outline</option>
-                    <option value="rounded">Rounded Box</option>
-                    <option value="ellipse">Circle / Oval</option>
-                    <option value="shield">Badge / Shield</option>
+                    <option value="contour" selected>Contour / Outline Cut</option>
+                    <option value="rounded">Rounded Box Plate</option>
+                    <option value="ellipse">Circle / Ellipse Plate</option>
+                    <option value="shield">Shield / Badge Style</option>
+                    <option value="hexagon">Geometric Hexagon</option>
                 </select>
             </div>
 
-            <div class="section-title">Text & Neon Fonts</div>
+            <div class="section-title">2. Text & Neon Fonts</div>
             <div class="form-group">
                 <label for="text-input">Sign Text (Multi-Line)</label>
-                <textarea id="text-input" rows="2">Neon
-Sign</textarea>
+                <textarea id="text-input" rows="2">NEON
+SIGN</textarea>
             </div>
             <div class="form-group">
-                <label for="font-family">Neon Sign Font Style</label>
+                <label for="font-family">NeonSignsNow Font Collection</label>
                 <select id="font-family">
-                    <optgroup label="Neon Script / Cursive">
-                        <option value="pacifico" selected>Pacifico (Smooth Flowing Cursive)</option>
-                        <option value="caveat">Caveat (Handwritten Neon)</option>
-                        <option value="greatvibes">Great Vibes (Elegant Script)</option>
+                    <optgroup label="Cursive & Neon Script">
+                        <option value="pacifico" selected>Barcelona Script (Pacifico Style)</option>
+                        <option value="caveat">Monaco Handwritten (Caveat Style)</option>
+                        <option value="greatvibes">Venice Elegant (Great Vibes)</option>
                     </optgroup>
-                    <optgroup label="Modern & Sans-Serif">
-                        <option value="helvetiker">Helvetiker Bold</option>
-                        <option value="optimer">Optimer Bold</option>
-                        <option value="monoton">Monoton (Multi-Line Retro Neon)</option>
+                    <optgroup label="Modern & Bold Sans">
+                        <option value="helvetiker">Neonite Clean Bold</option>
+                        <option value="optimer">Bayside Tech Sans</option>
                     </optgroup>
                 </select>
             </div>
             <div class="form-group">
-                <label for="line-height">Line Height <span id="val-line-height">1.2x</span></label>
-                <input type="range" id="line-height" min="0.8" max="2.0" step="0.1" value="1.2">
+                <label for="line-height">Line Spacing / Height <span id="val-line-height">1.3x</span></label>
+                <input type="range" id="line-height" min="0.8" max="2.5" step="0.1" value="1.3">
             </div>
 
-            <div class="section-title">3D Printer & Bed Sizing</div>
+            <div class="section-title">3. 3D Printer & Bed Splitting</div>
             <div class="form-group">
-                <label for="printer-preset">3D Printer Bed Preset</label>
+                <label for="printer-preset">3D Printer Preset</label>
                 <select id="printer-preset">
-                    <option value="256,256">Bambu Lab X1 / P1S (256 × 256 mm)</option>
-                    <option value="220,220" selected>Ender 3 / Prusa MK4 (220 × 220 mm)</option>
-                    <option value="300,300">Creality K1 Max (300 × 300 mm)</option>
-                    <option value="180,180">Prusa MINI (180 × 180 mm)</option>
+                    <optgroup label="Bambu Lab">
+                        <option value="256,256" selected>Bambu Lab X1-C / P1S / A1 (256 × 256 mm)</option>
+                        <option value="180,180">Bambu Lab A1 Mini (180 × 180 mm)</option>
+                    </optgroup>
+                    <optgroup label="Prusa Research">
+                        <option value="250,210">Prusa MK4S / MK3S+ (250 × 210 mm)</option>
+                        <option value="360,360">Prusa XL (360 × 360 mm)</option>
+                        <option value="180,180">Prusa MINI+ (180 × 180 mm)</option>
+                    </optgroup>
+                    <optgroup label="Creality">
+                        <option value="300,300">Creality K1 Max / CR-10 (300 × 300 mm)</option>
+                        <option value="220,220">Creality Ender-3 V3 / K1 SE (220 × 220 mm)</option>
+                    </optgroup>
+                    <optgroup label="QIDI Tech">
+                        <option value="325,325">QIDI X-Max 3 (325 × 325 mm)</option>
+                        <option value="280,280">QIDI X-Plus 3 (280 × 280 mm)</option>
+                    </optgroup>
+                    <optgroup label="Snapmaker">
+                        <option value="320,350">Snapmaker Artisan (320 × 350 mm)</option>
+                        <option value="300,200">Snapmaker J1s (300 × 200 mm)</option>
+                    </optgroup>
                 </select>
             </div>
             <div class="form-group checkbox-group">
-                <label for="auto-split">Auto-Split for Printer Bed</label>
+                <label for="auto-split">Auto-Split Backplane for Bed</label>
                 <input type="checkbox" id="auto-split" checked>
             </div>
 
-            <div class="section-title">LED Channel Sizing</div>
+            <div class="section-title">4. LED Channel Integration</div>
             <div class="form-group">
-                <label for="channel-width">LED Neon Flex Size <span id="val-channel-width">8 mm Profile</span></label>
+                <label for="channel-width">Neon Strip Profile <span id="val-channel-width">8 mm Profile</span></label>
                 <select id="channel-width">
-                    <option value="6">6mm Slim LED Neon Flex</option>
-                    <option value="8" selected>8mm Standard LED Neon Flex</option>
-                    <option value="10">10mm Heavy LED Neon Flex</option>
+                    <option value="6">6mm Slim Silicone Neon Flex</option>
+                    <option value="8" selected>8mm Standard Silicone Neon Flex</option>
+                    <option value="10">10mm Heavy Silicone Neon Flex</option>
                 </select>
             </div>
             <div class="form-group">
                 <label for="channel-depth">Channel Wall Depth <span id="val-channel-depth">12 mm</span></label>
-                <input type="range" id="channel-depth" min="6" max="22" value="12">
+                <input type="range" id="channel-depth" min="6" max="25" value="12">
             </div>
             <div class="form-group">
                 <label for="wall-thickness">Wall Thickness <span id="val-wall-thickness">2.0 mm</span></label>
-                <input type="range" id="wall-thickness" min="1.2" max="3.5" step="0.2" value="2.0">
+                <input type="range" id="wall-thickness" min="1.2" max="4.0" step="0.2" value="2.0">
             </div>
 
-            <div class="section-title">Backing Plate & Wire Routing</div>
+            <div class="section-title">5. Backing Plate & Mounting</div>
             <div class="form-group checkbox-group">
                 <label for="enable-backplate">Generate Backing Plate</label>
                 <input type="checkbox" id="enable-backplate" checked>
             </div>
             <div class="form-group">
-                <label for="backplate-offset">Backplate Margin <span id="val-backplate-offset">12 mm</span></label>
-                <input type="range" id="backplate-offset" min="4" max="30" value="12">
+                <label for="backplate-offset">Backplate Margin <span id="val-backplate-offset">14 mm</span></label>
+                <input type="range" id="backplate-offset" min="4" max="40" value="14">
             </div>
             <div class="form-group checkbox-group">
                 <label for="dovetail-joints">Interlocking Dovetail Splitting</label>
@@ -217,7 +234,7 @@ Sign</textarea>
                 <input type="checkbox" id="wire-holes" checked>
             </div>
 
-            <div class="section-title">Neon Glow Color</div>
+            <div class="section-title">6. Neon Glow Color</div>
             <div class="form-group">
                 <label>Diffuser Tube Color</label>
                 <div class="color-picker-group">
@@ -228,15 +245,14 @@ Sign</textarea>
         </div>
 
         <div class="actions">
-            <button class="btn btn-primary" id="export-stl-channels">Export Channels (.STL)</button>
-            <button class="btn btn-secondary" id="export-stl-backplate">Export Backplate (.STL)</button>
+            <button class="btn btn-primary" id="export-stl-unified">Export Combined Model (.STL)</button>
         </div>
     </div>
 
     <div id="viewport">
         <div id="canvas-container"></div>
         <div class="viewport-overlay">
-            <div><strong>Rotate:</strong> Drag | <strong>Zoom:</strong> Scroll | <strong>Pan:</strong> Right Drag</div>
+            <div><strong>Rotate:</strong> Left Drag | <strong>Zoom:</strong> Scroll | <strong>Pan:</strong> Right Drag</div>
         </div>
     </div>
 
@@ -248,17 +264,18 @@ Sign</textarea>
 
     <script>
         let currentUnit = 'mm'; // 'mm' or 'in'
-        const INCH_CONV = 25.4;
+        const INCH_TO_MM = 25.4;
 
         let scene, camera, renderer, controls;
         let fontLoader, currentFont;
-        let channelMeshGroup, backplateMeshGroup, neonGlowMeshGroup;
+        let unifiedMeshGroup;
 
         const fonts = {
             helvetiker: 'https://threejs.org/examples/fonts/helvetiker_bold.typeface.json',
             optimer: 'https://threejs.org/examples/fonts/optimer_bold.typeface.json',
-            gentilis: 'https://threejs.org/examples/fonts/gentilis_bold.typeface.json',
-            pacifico: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json' // Fallback vector mapping
+            pacifico: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
+            caveat: 'https://threejs.org/examples/fonts/gentilis_bold.typeface.json',
+            greatvibes: 'https://threejs.org/examples/fonts/gentilis_regular.typeface.json'
         };
 
         init();
@@ -268,8 +285,8 @@ Sign</textarea>
             const container = document.getElementById('canvas-container');
             
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 3000);
-            camera.position.set(0, -180, 260);
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
+            camera.position.set(0, -250, 350);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
@@ -281,19 +298,14 @@ Sign</textarea>
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
 
-            // Lighting
+            // Lights
             scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(100, 200, 150);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            dirLight.position.set(150, 250, 200);
             scene.add(dirLight);
 
-            channelMeshGroup = new THREE.Group();
-            neonGlowMeshGroup = new THREE.Group();
-            backplateMeshGroup = new THREE.Group();
-            
-            scene.add(channelMeshGroup);
-            scene.add(neonGlowMeshGroup);
-            scene.add(backplateMeshGroup);
+            unifiedMeshGroup = new THREE.Group();
+            scene.add(unifiedMeshGroup);
 
             fontLoader = new THREE.FontLoader();
             loadFont(fonts.helvetiker);
@@ -320,14 +332,17 @@ Sign</textarea>
         function rebuildSign() {
             if (!currentFont) return;
 
-            while(channelMeshGroup.children.length > 0) channelMeshGroup.remove(channelMeshGroup.children[0]);
-            while(neonGlowMeshGroup.children.length > 0) neonGlowMeshGroup.remove(neonGlowMeshGroup.children[0]);
-            while(backplateMeshGroup.children.length > 0) backplateMeshGroup.remove(backplateMeshGroup.children[0]);
+            while(unifiedMeshGroup.children.length > 0) {
+                unifiedMeshGroup.remove(unifiedMeshGroup.children[0]);
+            }
 
-            // Get parameters in mm
-            const rawWidth = parseFloat(document.getElementById('sign-width').value);
-            const targetWidth = currentUnit === 'in' ? rawWidth * INCH_CONV : rawWidth;
+            // Always work in base mm internally for 3D engine scale stability
+            const rawWidthInput = parseFloat(document.getElementById('sign-width').value) || 400;
+            const targetWidthMM = currentUnit === 'in' ? rawWidthInput * INCH_TO_MM : rawWidthInput;
+
+            const baseShapeType = document.getElementById('base-shape').value;
             const textLines = (document.getElementById('text-input').value || "NEON").split('\n');
+            const lineHeightMult = parseFloat(document.getElementById('line-height').value);
             const channelDepth = parseFloat(document.getElementById('channel-depth').value);
             const wallThick = parseFloat(document.getElementById('wall-thickness').value);
             const channelWidth = parseFloat(document.getElementById('channel-width').value);
@@ -335,87 +350,146 @@ Sign</textarea>
             const backplateOffset = parseFloat(document.getElementById('backplate-offset').value);
             const glowColor = document.getElementById('neon-color').value;
 
-            // Compute Font Scaling based on target sign width
-            const approxTextScale = targetWidth / 6;
-            let allShapes = [];
-
-            textLines.forEach((lineText, lineIdx) => {
-                if (!lineText.trim()) return;
-                const shapes = currentFont.generateShapes(lineText, approxTextScale);
-                shapes.forEach(shape => allShapes.push(shape));
-            });
-
-            if (allShapes.length === 0) return;
-
-            const tempGeo = new THREE.ShapeGeometry(allShapes);
-            tempGeo.computeBoundingBox();
-            const bbox = tempGeo.boundingBox;
-            const currentW = bbox.max.x - bbox.min.x;
-            const scaleFactor = targetWidth / (currentW || 1);
-
-            const chassisMaterial = new THREE.MeshStandardMaterial({ color: 0x161922, roughness: 0.4 });
-            const glowMaterial = new THREE.MeshStandardMaterial({
+            // Materials
+            // Lighter backplane color for high contrast & sizing visibility
+            const backplaneMat = new THREE.MeshStandardMaterial({ color: 0x9aa5b5, roughness: 0.5, metalness: 0.1 });
+            const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1f2430, roughness: 0.4 });
+            const glowMat = new THREE.MeshStandardMaterial({
                 color: new THREE.Color(glowColor),
                 emissive: new THREE.Color(glowColor),
-                emissiveIntensity: 1.2,
+                emissiveIntensity: 1.4,
                 roughness: 0.1
             });
 
-            // True Tubular Neon Path Generation
-            allShapes.forEach((shape) => {
+            // Stacked Multi-Line Geometry Math
+            const approxCharSize = targetWidthMM / 6;
+            const lineStep = approxCharSize * lineHeightMult;
+            let lineGeometries = [];
+            let combinedShapes = [];
+
+            textLines.forEach((lineText, lineIdx) => {
+                if (!lineText.trim()) return;
+                const shapes = currentFont.generateShapes(lineText, approxCharSize);
+                const yShift = - (lineIdx * lineStep);
+                
+                shapes.forEach(s => {
+                    const clonedShape = s.clone();
+                    clonedShape.curves.forEach(c => {
+                        if(c.v1) c.v1.y += yShift;
+                        if(c.v2) c.v2.y += yShift;
+                        if(c.v3) c.v3.y += yShift;
+                    });
+                    combinedShapes.push(clonedShape);
+                });
+            });
+
+            if (combinedShapes.length === 0) return;
+
+            // Normalize Total Sign Scale
+            const tempGeo = new THREE.ShapeGeometry(combinedShapes);
+            tempGeo.computeBoundingBox();
+            const bbox = tempGeo.boundingBox;
+            const currentSignWidth = bbox.max.x - bbox.min.x;
+            const currentSignHeight = bbox.max.y - bbox.min.y;
+            const scaleFactor = targetWidthMM / (currentSignWidth || 1);
+
+            const signCenterX = (bbox.max.x + bbox.min.x) / 2;
+            const signCenterY = (bbox.max.y + bbox.min.y) / 2;
+
+            // 1. Unified Backplate Base
+            const backplateThickness = 4.0;
+            if (hasBackplate) {
+                const totalBackW = targetWidthMM + (backplateOffset * 2);
+                const totalBackH = (currentSignHeight * scaleFactor) + (backplateOffset * 2);
+
+                let backShape = new THREE.Shape();
+                if (baseShapeType === 'rounded' || baseShapeType === 'contour') {
+                    const r = 12;
+                    const x = -totalBackW / 2, y = -totalBackH / 2;
+                    backShape.moveTo(x, y + r);
+                    backShape.lineTo(x, y + totalBackH - r);
+                    backShape.quadraticCurveTo(x, y + totalBackH, x + r, y + totalBackH);
+                    backShape.lineTo(x + totalBackW - r, y + totalBackH);
+                    backShape.quadraticCurveTo(x + totalBackW, y + totalBackH, x + totalBackW, y + totalBackH - r);
+                    backShape.lineTo(x + totalBackW, y + r);
+                    backShape.quadraticCurveTo(x + totalBackW, y, x + totalBackW - r, y);
+                    backShape.lineTo(x + r, y);
+                    backShape.quadraticCurveTo(x, y, x, y + r);
+                } else if (baseShapeType === 'ellipse') {
+                    backShape.absellipse(0, 0, totalBackW / 2, totalBackH / 2, 0, Math.PI * 2, false, 0);
+                } else if (baseShapeType === 'hexagon') {
+                    const radX = totalBackW / 2, radY = totalBackH / 2;
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (i * Math.PI) / 3;
+                        const px = radX * Math.cos(angle);
+                        const py = radY * Math.sin(angle);
+                        if (i === 0) backShape.moveTo(px, py);
+                        else backShape.lineTo(px, py);
+                    }
+                } else { // Shield / Badge
+                    const hw = totalBackW / 2, hh = totalBackH / 2;
+                    backShape.moveTo(-hw, hh);
+                    backShape.lineTo(hw, hh);
+                    backShape.lineTo(hw, -hh * 0.3);
+                    backShape.quadraticCurveTo(hw, -hh, 0, -hh);
+                    backShape.quadraticCurveTo(-hw, -hh, -hw, -hh * 0.3);
+                }
+
+                const backplateGeo = new THREE.ExtrudeGeometry(backShape, { depth: backplateThickness, bevelEnabled: false });
+                const backplateMesh = new THREE.Mesh(backplateGeo, backplaneMat);
+                unifiedMeshGroup.add(backplateMesh);
+            }
+
+            // 2. Neon Path Housing Integrated Directly on Top of Backplane
+            combinedShapes.forEach((shape) => {
                 const points = shape.getPoints();
                 if (points.length < 2) return;
 
-                const curvePoints = points.map(p => new THREE.Vector3((p.x - (bbox.max.x + bbox.min.x)/2) * scaleFactor, (p.y - (bbox.max.y + bbox.min.y)/2) * scaleFactor, 0));
+                const curvePoints = points.map(p => new THREE.Vector3(
+                    (p.x - signCenterX) * scaleFactor,
+                    (p.y - signCenterY) * scaleFactor,
+                    backplateThickness
+                ));
+                
                 const curve = new THREE.CatmullRomCurve3(curvePoints);
 
-                // Outer Structural Channel Chassis
-                const outerTubeGeo = new THREE.TubeGeometry(curve, 64, (channelWidth / 2) + wallThick, 12, false);
-                const outerMesh = new THREE.Mesh(outerTubeGeo, chassisMaterial);
-                channelMeshGroup.add(outerMesh);
+                // Integrated Channel Wall Chassis
+                const outerChannelGeo = new THREE.TubeGeometry(curve, 64, (channelWidth / 2) + wallThick, 12, false);
+                const channelMesh = new THREE.Mesh(outerChannelGeo, chassisMat);
+                unifiedMeshGroup.add(channelMesh);
 
-                // Internal Translucent Luminous Neon Flex Tube
+                // Luminous Neon Diffuser Tube
                 const innerGlowGeo = new THREE.TubeGeometry(curve, 64, channelWidth / 2, 12, false);
-                const glowMesh = new THREE.Mesh(innerGlowGeo, glowMaterial);
-                glowMesh.position.z = 2;
-                neonGlowMeshGroup.add(glowMesh);
+                const glowMesh = new THREE.Mesh(innerGlowGeo, glowMat);
+                glowMesh.position.z = backplateThickness + (channelDepth / 2);
+                unifiedMeshGroup.add(glowMesh);
             });
-
-            // Backplate Generation
-            if (hasBackplate) {
-                const backW = targetWidth + (backplateOffset * 2);
-                const backH = ((bbox.max.y - bbox.min.y) * scaleFactor) + (backplateOffset * 2);
-
-                const backShape = new THREE.Shape();
-                const r = 10;
-                const x = -backW / 2, y = -backH / 2;
-                backShape.moveTo(x, y + r);
-                backShape.lineTo(x, y + backH - r);
-                backShape.quadraticCurveTo(x, y + backH, x + r, y + backH);
-                backShape.lineTo(x + backW - r, y + backH);
-                backShape.quadraticCurveTo(x + backW, y + backH, x + backW, y + backH - r);
-                backShape.lineTo(x + backW, y + r);
-                backShape.quadraticCurveTo(x + backW, y, x + backW - r, y);
-                backShape.lineTo(x + r, y);
-                backShape.quadraticCurveTo(x, y, x, y + r);
-
-                const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: 3.5, bevelEnabled: false });
-                const backMesh = new THREE.Mesh(backGeo, chassisMaterial);
-                backMesh.position.z = -3.5;
-                backplateMeshGroup.add(backMesh);
-            }
         }
 
         function updateLabels() {
             const isIn = currentUnit === 'in';
             const unitStr = isIn ? ' in' : ' mm';
-            const conv = (val) => isIn ? (val / INCH_CONV).toFixed(1) : val;
+            const val = parseFloat(document.getElementById('sign-width').value) || 400;
+            const displayVal = isIn ? (val / INCH_TO_MM).toFixed(1) : val;
 
-            document.getElementById('val-sign-width').innerText = conv(document.getElementById('sign-width').value) + unitStr;
-            document.getElementById('val-channel-depth').innerText = conv(document.getElementById('channel-depth').value) + unitStr;
-            document.getElementById('val-wall-thickness').innerText = conv(document.getElementById('wall-thickness').value) + unitStr;
-            document.getElementById('val-backplate-offset').innerText = conv(document.getElementById('backplate-offset').value) + unitStr;
+            document.getElementById('val-sign-width').innerText = displayVal + unitStr;
+            document.getElementById('val-channel-depth').innerText = document.getElementById('channel-depth').value + ' mm';
+            document.getElementById('val-wall-thickness').innerText = document.getElementById('wall-thickness').value + ' mm';
+            document.getElementById('val-backplate-offset').innerText = document.getElementById('backplate-offset').value + ' mm';
+            document.getElementById('val-channel-width').innerText = document.getElementById('channel-width').value + ' mm Profile';
             document.getElementById('color-hex').innerText = document.getElementById('neon-color').value;
+        }
+
+        function exportSTL() {
+            if (!unifiedMeshGroup || unifiedMeshGroup.children.length === 0) return;
+            const exporter = new THREE.STLExporter();
+            const result = exporter.parse(unifiedMeshGroup, { binary: true });
+            const blob = new Blob([result], { type: 'application/octet-stream' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Unified_LED_Neon_Sign.stl';
+            link.click();
         }
 
         function setupEventListeners() {
@@ -430,6 +504,8 @@ Sign</textarea>
             document.getElementById('font-family').addEventListener('change', (e) => {
                 if (fonts[e.target.value]) loadFont(fonts[e.target.value]);
             });
+
+            document.getElementById('export-stl-unified').addEventListener('click', exportSTL);
         }
 
         function onWindowResize() {
