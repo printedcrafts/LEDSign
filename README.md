@@ -4,11 +4,11 @@ A browser-based LED neon sign designer with per-character centerline tracing, ad
 
 ## Workflow
 1. Enter text and upload a TTF/OTF font or use the built-in single-line alphabet.
-2. Adjust global letter/pair spacing. Choose a character range from the numbered legend and move the selection horizontally or vertically.
+2. Adjust global letter/pair spacing. Click one character button to select a letter; Shift-click another to select a range, then move that selection horizontally or vertically.
 3. Configure the LED channel and choose tile dimensions of at least 100 × 100 mm. Tile size plus connector overhang must fit the selected printer bed.
 4. Choose dovetail interlocks (default) or puzzle-step connectors and optionally emboss tile IDs.
 5. Use Preview assembled 3D to orbit and inspect the complete layout before export.
-6. Generate STL files. Each tile assembly STL includes its backplane, channel geometry, and optional embossed ID. Mounting accessories are separate STL parts. ZIP includes a build guide, SVG assembly map, and channel cross-section.
+6. Generate STL files. Each tile assembly STL includes its backplane, channel geometry, and optional embossed ID. Channel ends at tile seams are left uncapped so LED flex can continue through joined tiles. Mounting accessories are separate STL parts. ZIP includes a build guide, SVG assembly map, and channel cross-section.
 
 ## Geometry
 Uploaded glyphs are rasterized and skeletonized per character so letter groups can be adjusted independently. Distance simplification, three corner-cutting passes and even-distance resampling reduce raster wobble. Script fonts and branching joins still need visual review.

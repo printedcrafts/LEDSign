@@ -237,7 +237,14 @@ function labels(){
   for(const id of ['width','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id+'O').textContent=$(id).value+(id==='glow'?'%':' mm');
   $('letterSpacingO').textContent=(+$('letterSpacing').value||0).toFixed(1)+' mm';
   $('pairSpacingO').textContent=(+$('pairSpacing').value||0).toFixed(1)+' mm';
-  $('pairStatus').textContent='Adjust spacing after character '+Math.max(1,+$('pairAfter').value||1)+'.';
+  $('pairStatus').textContent='Click a character below to select it; Shift-click another to select a range. Pair spacing applies after character '+Math.max(1,+$('pairAfter').value||1)+'. Selected: '+from.value+'–'+to.value+'.';
+  const legend=$('letterLegend');legend.replaceChildren();
+  chars.forEach((c,i)=>{
+   const b=document.createElement('button');b.type='button';b.className='letter-select';b.textContent=(i+1)+':'+(c===' '?'␠':c);b.title='Select character '+(i+1);
+   const active=i>=+from.value-1&&i<=+to.value-1;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+   b.onclick=e=>{const n=i+1;if(e.shiftKey){const a=+$('letterFrom').value||n,z=+$('letterTo').value||a;$('letterFrom').value=Math.min(a,n);$('letterTo').value=Math.max(z,n);}else{$('letterFrom').value=n;$('letterTo').value=n;}labels();if(!manualMode)buildLines();};
+   legend.append(b);
+  });
   const o=opts();$('profile').textContent='Opening '+o.inner.toFixed(1)+' mm · outside '+o.outer.toFixed(1)+' mm · nominal LED '+o.p.w+'×'+o.p.h+' mm · min bend radius to verify (example '+o.p.bend+' mm).';
 }
 function svg(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.append(e);return e;}
@@ -254,7 +261,7 @@ function buildLines(){try{if($('font').value==='custom'&&manualMode){fontPreview
 function invalidate(){downloadBlob=null;$('download').disabled=true;view();}
 function orient(a,b){return a[0]*b[1]-a[1]*b[0];}
 function capTriangles(poly){const ids=poly.map((_,i)=>i),tri=[];let area=0;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];area+=orient(a,b);}const sign=Math.sign(area)||1;for(let loop=0;ids.length>3&&loop<100;loop++){let found=false;for(let i=0;i<ids.length;i++){const A=ids[(i+ids.length-1)%ids.length],B=ids[i],C=ids[(i+1)%ids.length],a=poly[A],b=poly[B],c=poly[C];if(orient([b[0]-a[0],b[1]-a[1]],[c[0]-b[0],c[1]-b[1]])*sign<1e-8)continue;let inside=false;for(const j of ids){if([A,B,C].includes(j))continue;const p=poly[j];const f=(u,v,w)=>orient([v[0]-u[0],v[1]-u[1]],[w[0]-u[0],w[1]-u[1]])*sign; if(f(a,b,p)>=-1e-9&&f(b,c,p)>=-1e-9&&f(c,a,p)>=-1e-9){inside=true;break;}}if(inside)continue;tri.push([A,B,C]);ids.splice(i,1);found=true;break;}if(!found)throw Error('Could not triangulate end cap.');}if(ids.length===3)tri.push([...ids]);return tri;}
-function swept(points,profile){
+function swept(points,profile,capEnds={start:true,end:true}){
   const isClosed=points.length>3&&Math.hypot(points[0].x-points.at(-1).x,points[0].y-points.at(-1).y)<.2;
   let pts=smooth(points).filter((p,i,a)=>i===0||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>.15);
   if(isClosed&&pts.length>2&&Math.hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<.2)pts=pts.slice(0,-1);
@@ -281,11 +288,8 @@ function swept(points,profile){
   // first without caps so the tube wall is continuous around the letter.
   if(!isClosed){
     const caps=capTriangles(profile);
-    for(const [a,b,c]of caps){
-      add(sections[0][c],sections[0][b],sections[0][a]);
-      const e=sections.at(-1);
-      add(e[a],e[b],e[c]);
-    }
+    if(capEnds.start!==false)for(const [a,b,c]of caps)add(sections[0][c],sections[0][b],sections[0][a]);
+    if(capEnds.end!==false){const e=sections.at(-1);for(const [a,b,c]of caps)add(e[a],e[b],e[c]);}
   }
   return triangles;
 }
@@ -351,7 +355,7 @@ function edgePoints(start,end,outward,enabled,gender,joint,depth,rootWidth){
  return [start,point(t0),off(t0-flare,depth),off(t1+flare,depth),point(t1),end];
 }
 function tileOutline(col,row,cols,rows,w,h,joint,depth,rootWidth){
- const p=(col+row)%2,edges=[{a:[0,0],b:[w,0],n:[0,-1],has:row>0,male:p===1},{a:[w,0],b:[w,h],n:[1,0],has:col<cols-1,male:p===0},{a:[w,h],b:[0,h],n:[0,1],has:row<rows-1,male:p===0},{a:[0,h],b:[0,0],n:[-1,0],has:col>0,male:p===1}],poly=[];
+ const p=(col+row)%2,edges=[{a:[0,0],b:[w,0],n:[0,-1],has:row>0,male:p===0},{a:[w,0],b:[w,h],n:[1,0],has:col<cols-1,male:p===0},{a:[w,h],b:[0,h],n:[0,1],has:row<rows-1,male:p===0},{a:[0,h],b:[0,0],n:[-1,0],has:col>0,male:p===0}],poly=[];
  for(const e of edges){const pts=edgePoints(e.a,e.b,e.n,e.has,e.male?'male':'female',joint,depth,rootWidth);poly.push(...pts.slice(0,-1));}return poly;
 }
 function splitForBackplane(paths,bedW,bedH,tileW,tileH,margin){
@@ -363,7 +367,13 @@ function splitForBackplane(paths,bedW,bedH,tileW,tileH,margin){
  const minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y)),spanX=maxX-minX,spanY=maxY-minY;
  const cols=Math.max(1,Math.ceil((spanX+2*margin)/tileW)),rows=Math.max(1,Math.ceil((spanY+2*margin)/tileH));if(cols*rows>120)throw Error('More than 120 backplane tiles required; increase tile size or reduce sign width.');
  const left=minX-(cols*tileW-spanX)/2,top=minY-(rows*tileH-spanY)/2,pieces=[];
- for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const x0=left+col*tileW,y0=top+row*tileH,rect=[x0,y0,x0+tileW,y0+tileH];for(let pi=0;pi<paths.length;pi++){let seg=0;for(const path of clipPath(paths[pi],rect))if(path.length>1)pieces.push({path:path.map(p=>({x:p.x-x0,y:p.y-y0})),tileX:col+1,tileY:row+1,strokeIndex:pi+1,segmentIndex:++seg});}}
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const x0=left+col*tileW,y0=top+row*tileH,rect=[x0,y0,x0+tileW,y0+tileH];for(let pi=0;pi<paths.length;pi++){
+   let seg=0;
+   for(const path of clipPath(paths[pi],rect))if(path.length>1){
+    const atBoundary=p=>Math.abs(p.x-x0)<.02||Math.abs(p.x-(x0+tileW))<.02||Math.abs(p.y-y0)<.02||Math.abs(p.y-(y0+tileH))<.02;
+    pieces.push({path:path.map(p=>({x:p.x-x0,y:p.y-y0})),tileX:col+1,tileY:row+1,strokeIndex:pi+1,segmentIndex:++seg,openStart:atBoundary(path[0]),openEnd:atBoundary(path.at(-1))});
+   }
+  }}
  return {pieces,cols,rows,left,top,tileW,tileH,extent:0,backplane:true,joint,depth};
 }
 const PART_ID_STROKES={'0':[[0,0,3.8,0],[3.8,0,3.8,5],[3.8,5,0,5],[0,5,0,0]],'1':[[2,0,2,5],[.5,4.8,2,5]],'2':[[0,0,3.8,0],[3.8,0,3.8,2.4],[3.8,2.4,0,2.6],[0,2.6,0,5],[0,5,3.8,5]],'3':[[0,0,3.8,0],[3.8,0,3.8,5],[0,2.5,3.8,2.5],[0,5,3.8,5]],'4':[[0,0,0,2.5],[0,2.5,3.8,2.5],[3.8,0,3.8,5]],'5':[[3.8,0,0,0],[0,0,0,2.5],[0,2.5,3.8,2.5],[3.8,2.5,3.8,5],[3.8,5,0,5]],'6':[[3.8,0,0,0],[0,0,0,5],[0,2.5,3.8,2.5],[3.8,2.5,3.8,5],[3.8,5,0,5]],'7':[[0,0,3.8,0],[3.8,0,1,5]],'8':[[0,0,3.8,0],[3.8,0,3.8,5],[3.8,5,0,5],[0,5,0,0],[0,2.5,3.8,2.5]],'9':[[3.8,5,3.8,0],[3.8,0,0,0],[0,0,0,2.5],[0,2.5,3.8,2.5]],'T':[[0,0,3.8,0],[1.9,0,1.9,5]],'-':[[.5,2.5,3.2,2.5]]};
@@ -377,8 +387,8 @@ function buildModelData(){
   if(+$('jointWidth').value<16||+$('jointWidth').value>40)throw Error('Connector width must be between 16 and 40 mm.');
   for(let row=0;row<split.rows;row++)for(let col=0;col<split.cols;col++){
    const id='T'+String(row+1).padStart(2,'0')+'-'+String(col+1).padStart(2,'0'),panelTriangles=extrudedPolygon(tileOutline(col,row,split.cols,split.rows,tw,th,split.joint,split.depth,+$('jointWidth').value||24),0,o.backingHeight),channelTriangles=[];
-   for(const p of split.pieces.filter(p=>p.tileX===col+1&&p.tileY===row+1)){const ch=swept(p.path,channelProfile(panelProfile));channelTriangles.push(...ch.map(t=>t.map(v=>[v[0],v[1],v[2]+o.backingHeight-.05])));}
-   const labelTriangles=$('embossIds').checked?tileLabelTriangles(id,o.backingHeight):[];
+   for(const p of split.pieces.filter(p=>p.tileX===col+1&&p.tileY===row+1)){const ch=swept(p.path,channelProfile(panelProfile),{start:!p.openStart,end:!p.openEnd});channelTriangles.push(...ch.map(t=>t.map(v=>[v[0],v[1],v[2]+o.backingHeight-.05])));}
+   const labelTriangles=$('embossIds').checked?tileLabelTriangles(id,o.backingHeight-.05):[];
    parts.push({name:id,triangles:[...panelTriangles,...channelTriangles,...labelTriangles],meshes:[{name:id+' backplane',triangles:panelTriangles,color:row%2?'#8d9bad':'#a9b5c6'},{name:id+' channels',triangles:channelTriangles,color:'#4e5e77'},...(labelTriangles.length?[{name:id+' embossed ID',triangles:labelTriangles,color:'#d1b0ff'}]:[])],color:row%2?'#8d9bad':'#a9b5c6',dx:col*tw,dy:row*th,tileX:col+1,tileY:row+1});
   }
   for(let i=0;i<anchors.length;i++){const a=anchors[i],loc=tileForMount(a,split),anchor={...a,x:loc.x,y:loc.y};for(const part of mountPartsFor(o.mountStyle,anchor))mounts.push({name:part.suffix+'-'+(i+1),triangles:part.triangles,color:'#d6a663',dx:(loc.tileX-1)*tw,dy:(loc.tileY-1)*th,tileX:loc.tileX,tileY:loc.tileY});}
