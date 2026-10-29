@@ -1,21 +1,17 @@
-# PrintedCrafts LEDSign Studio
+# PrintedCrafts LED Neon Sign Studio
 
-A browser-based LED neon sign designer with per-character centerline tracing, letter selection/alignment, interlocking backplane tiles, mounting accessories, and an assembled 3D preview.
+Independent browser-side recreation of the public LED Neon Sign Generator workflow: SVG or text input, channel-letter or line-channel construction, a parameterized 3D preview, and STL/GLB export.
 
 ## Workflow
-1. Enter text and upload a TTF/OTF font or use the built-in single-line alphabet.
-2. Adjust global letter/pair spacing. Click one character button to select a letter; Shift-click another to select a range, then move that selection horizontally or vertically.
-3. Configure the LED channel and choose tile dimensions of at least 100 × 100 mm. Tile size plus connector overhang must fit the selected printer bed.
-4. Choose dovetail interlocks (default) or puzzle-step connectors and optionally emboss tile IDs.
-5. Use Preview assembled 3D to orbit and inspect the complete layout before export.
-6. Generate STL files. Each tile assembly STL includes its backplane, channel geometry, and optional embossed ID. Channel ends at tile seams are left uncapped so LED flex can continue through joined tiles. Mounting accessories are separate STL parts. ZIP includes a build guide, SVG assembly map, and channel cross-section.
+1. Choose SVG and drop/select a vector file, or switch to Text, type text, choose a font, and build its vector outlines.
+2. Choose Channel letters for filled artwork or LED channel along lines for vector strokes.
+3. Adjust artwork width, walls/floor, optional diffuser ledge, support angle, diffuser thickness and smoothness.
+4. Enable a rounded, square, or contour/outline backplane. Set tile max dimensions (minimum 100 mm), dovetail/puzzle/flat joins, and keyhole/eyelet/standoff mounting options.
+5. Inspect the 3D model, adjust preview finish / feature edges, click a wall to remove or restore its ledge helper, then export STL or GLB.
+6. Check the result in a slicer before printing. The diffuser/acrylic face itself is not exported.
 
-## Geometry
-Uploaded glyphs are rasterized and skeletonized per character so letter groups can be adjusted independently. Distance simplification, three corner-cutting passes and even-distance resampling reduce raster wobble. Script fonts and branching joins still need visual review.
+## Geometry notes
+Filled artwork gets floor extrusions and wall sweeps along closed contours. Line-art mode sweeps a U-channel along vector subpaths. Floor/wall shells overlap slightly so slicers can union them. The face-plate ledge is separate helper geometry and may be toggled per wall in the preview.
+Backplanes support rounded rectangles, square corners and a convex contour approximation around the artwork. Large panels are divided into interlocking printable tiles. Verify the tessellated contour joints, tile size versus bed size, and assembly tolerance in the slicer; these are experimental geometry, not structural certification.
 
-Backplane tiles have complementary dovetail or puzzle-step edges. Channel shells overlap the plate top by 0.05 mm so the slicer can fuse them; confirm each tile is a single connected printable body. No separate dowels, diffuser cap or boolean-cut wire feed-throughs are included.
-
-## Fabrication safety
-Mount accessories are separate and not load-rated. Confirm fasteners and attach mounts to strong backplane regions. Verify actual LED clearance, bend radius, wall/floor thickness, tile connector fit, printer-bed clearance, mesh integrity and mounts in a slicer. Use appropriate wall anchors, wiring insulation, strain relief, heat management, and a rated power supply. This is experimental software, not structural or electrical certification.
-
-Font files are processed locally. Publish `index.html`, `app.js`, `preview3d.js`, and `style.css` together for GitHub Pages.
+Text outlines use OpenType.js in the browser. Built-in font files are fetched from Google Fonts on request; user font files are parsed locally. Artwork is not uploaded. Mounting tabs, eyelets and standoffs are experimental, not load-rated. Check manifoldness, physical fit, LED bend radius, wall thickness, anchors, insulation, strain relief and power supply rating before fabrication or installation.
