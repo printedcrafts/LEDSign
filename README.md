@@ -2,6 +2,9 @@
 
 Independent browser-side recreation of the public LED Neon Sign Generator workflow: SVG or text input, channel-letter or line-channel construction, a parameterized 3D preview, and STL/GLB export.
 
+## Interface theme
+The interface uses a vermilion highlight (`#E34234`) on the dark control-panel and 3D-viewport layout.
+
 ## Workflow
 1. Choose SVG and drop/select a vector file, or switch to Text, type text, choose a font, and build its vector outlines.
 2. Choose Channel letters for filled artwork or LED channel along lines for vector strokes.
