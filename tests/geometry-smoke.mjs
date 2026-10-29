@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const app=readFileSync(new URL('../app.js',import.meta.url),'utf8');
 function extract(start,end){const i=app.indexOf(start),j=app.indexOf(end,i);assert.ok(i>=0&&j>i,'could not find '+start);return app.slice(i,j);}
 const geometry=new Function(extract('function edgePoints(','function shapeFromPoints(')+'return {edgePoints,panelOutline};')();
+const skeletonNeighbors=new Function(extract('function skeletonNeighbors(','function normalizeSvg(')+'return skeletonNeighbors;')();
 const {edgePoints,panelOutline}=geometry;
 const close=(a,b,eps=1e-5)=>Math.hypot(a[0]-b[0],a[1]-b[1])<eps;
 const area=p=>p.reduce((s,a,i)=>{const b=p[(i+1)%p.length];return s+a[0]*b[1]-b[0]*a[1];},0)/2;
@@ -55,4 +56,9 @@ assert.ok(app.includes("function beginLetterPointer"));
 assert.ok(app.includes("function alignSelectedLetters"));
 assert.ok(app.includes("g.translate(0,0,-thickness-.01)"));
 assert.ok(app.includes("function addRearWireRoutes"));
+const diagonalOnly=Uint8Array.from([1,0,0,1]);
+assert.deepEqual(skeletonNeighbors(diagonalOnly,2,2,0),[3],'isolated diagonal skeleton link should remain connected');
+const redundantDiagonal=Uint8Array.from([1,1,0,1]);
+assert.deepEqual(skeletonNeighbors(redundantDiagonal,2,2,0),[1],'redundant diagonal link should be suppressed');
+assert.ok([...`0123456789`].every(d=>app.includes(`'${d}':[`)),'all numeric tile ID characters must have engraving stencils');
 console.log('LEDSign geometry smoke tests passed:',tested,'panel outline cases, edge mating cases and full neighboring-tile seam cases.');
