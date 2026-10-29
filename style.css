@@ -8,3 +8,5 @@
 .align-buttons{display:flex;gap:6px;margin:6px 0}.align-buttons button{flex:1;min-width:0}.selection-chips{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0}.selection-chips button{min-height:27px;padding:4px 8px;font-size:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
 
 #toggleLetterEdit.active{background:#e34234;border-color:#ff9d8f;color:#fff}
+
+.unit-entry-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.input-tabs.compact{margin:0;max-width:96px}.input-tabs.compact button{padding:5px 9px;font-size:10px}.line-spacing-field{margin-top:12px}

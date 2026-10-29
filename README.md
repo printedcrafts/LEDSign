@@ -42,3 +42,12 @@ For text input, each glyph receives a group ID and is centerline-traced independ
 
 ## Geometry validation matrix
 The source-level smoke checks cover the two matching edge profiles, rounded/square panel outline generation, target-box centering, glyph grouping, channel smoothing and letter alignment. Browser-side CSG unions and recess/cut operations remain dependent on the external module and require real-browser/slicer acceptance; geometry settings should not be considered production-qualified until those tests pass.
+
+
+## Integrated from alternate LEDSign Studio HTML
+Selected compatible features from the alternate single-file implementation were integrated into the modular editor:
+- Additional ellipse, shield/badge and hexagonal backplane silhouettes, clipped per tile so the existing dovetail/puzzle seam machinery is retained.
+- A line-spacing control for multiline typed signs.
+- A millimetre/inch entry-unit switch for target width and height. Switching units converts entered values to preserve physical size, final sizes continue to show both units, and changing the target box re-normalizes the source geometry and scales existing manual letter offsets.
+
+The alternate implementation's Three.js TubeGeometry outline tracing and separate glow tube were not carried over because they do not create the project's required open LED-sized printable channel cross-sections and would regress the existing centerline/CSG architecture.
