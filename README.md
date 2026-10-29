@@ -26,3 +26,7 @@ The selector includes WLED-compatible addressable families, analog single-colour
 
 ## User-controlled sign dimensions
 The target width and height box is above the SVG/Text input and has no imposed upper maximum. Geometry preserves aspect ratio and fits inside the target box. Final print dimensions include the backplane and are shown in millimetres and inches. Letter-channel cross-sections use the selected LED profile width plus side clearance; choosing a taller profile raises the recommended wall height if needed.
+
+
+## User-defined rear wire routing
+Users can click the 3D sign to draw rear wire routes and place pass-through holes. Paired raceway rails generate on the rear face; holes are subtracted through panel tiles and intersecting letter/channel floors using browser-side CSG. The CSG output and route clearance must be checked in a slicer, and routes should not cross tile joints or mounts.
