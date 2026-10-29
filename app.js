@@ -123,7 +123,7 @@ async function traceTextCenterlineSvg(svgText){
  try{
   const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Could not rasterize the font outlines for centerline tracing.'));im.src=url;});
   const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;if(!iw||!ih)throw Error('Font artwork has no measurable raster size.');
-  const scale=Math.min(2,1200/iw,800/ih),pad=8,w=Math.ceil(iw*scale)+pad*2,h=Math.ceil(ih*scale)+pad*2,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+  const scale=Math.min(8,1600/iw,1200/ih),pad=8,w=Math.ceil(iw*scale)+pad*2,h=Math.ceil(ih*scale)+pad*2,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Canvas 2D is unavailable for font tracing.');
   ctx.clearRect(0,0,w,h);ctx.drawImage(img,pad,pad,iw*scale,ih*scale);
   const rgba=ctx.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)mask[i]=rgba[i*4+3]>100?1:0;
