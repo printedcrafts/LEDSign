@@ -79,9 +79,29 @@ for(const style of ['ellipse','shield','hexagon']){
   }
  }
 }
+
+function samePointMultiset(a,b){if(a.length!==b.length)return false;const remaining=b.map(p=>p.slice());for(const p of a){const i=remaining.findIndex(q=>close(p,q));if(i<0)return false;remaining.splice(i,1);}return remaining.length===0;}
+for(const style of ['ellipse','shield','hexagon'])for(const joint of ['dovetail','puzzle','none'])for(const [cols,rows] of [[2,1],[1,2],[2,2],[3,2]]){
+ const totalW=440,totalH=320,tw=totalW/cols,th=totalH/rows,H=backplaneSilhouette(style,0,0,totalW,totalH),tiles=[];
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const x0=-totalW/2+col*tw,y0=-totalH/2+row*th,local=silhouetteTileOutline(H,[x0,y0,x0+tw,y0+th],col,row,cols,rows,tw,th,joint,7,24);tiles.push({col,row,x0,y0,tw,th,p:local.map(v=>[v[0]+x0,v[1]+y0])});}
+ const xOffsets=joint==='puzzle'?[0,3.15,7]:joint==='none'?[0]:[0,7],yOffsets=xOffsets;
+ for(let row=0;row<rows;row++)for(let col=0;col<cols-1;col++){
+  const left=tiles.find(t=>t.col===col&&t.row===row),right=tiles.find(t=>t.col===col+1&&t.row===row),x=left.x0+left.tw,y1=left.y0+1,y2=left.y0+left.th-1;
+  const inProfile=xv=>xOffsets.some(d=>Math.abs(xv-(x+d))<1e-5);
+  const l=left.p.filter(p=>inProfile(p[0])&&p[1]>y1&&p[1]<y2),r=right.p.filter(p=>inProfile(p[0])&&p[1]>y1&&p[1]<y2);
+  assert.ok(samePointMultiset(l,r),style+'/'+joint+' vertical silhouette seam does not mate ('+cols+'x'+rows+')');tested++;
+ }
+ for(let row=0;row<rows-1;row++)for(let col=0;col<cols;col++){
+  const top=tiles.find(t=>t.col===col&&t.row===row),bottom=tiles.find(t=>t.col===col&&t.row===row+1),y=top.y0+top.th,x1=top.x0+1,x2=top.x0+top.tw-1;
+  const inProfile=yv=>yOffsets.some(d=>Math.abs(yv-(y+d))<1e-5);
+  const t=top.p.filter(p=>inProfile(p[1])&&p[0]>x1&&p[0]<x2),b=bottom.p.filter(p=>inProfile(p[1])&&p[0]>x1&&p[0]<x2);
+  assert.ok(samePointMultiset(t,b),style+'/'+joint+' horizontal silhouette seam does not mate ('+cols+'x'+rows+')');tested++;
+ }
+}
+
 const diagonalOnly=Uint8Array.from([1,0,0,1]);
 assert.deepEqual(skeletonNeighbors(diagonalOnly,2,2,0),[3],'isolated diagonal skeleton link should remain connected');
 const redundantDiagonal=Uint8Array.from([1,1,0,1]);
 assert.deepEqual(skeletonNeighbors(redundantDiagonal,2,2,0),[1],'redundant diagonal link should be suppressed');
 assert.ok([...`0123456789`].every(d=>app.includes(`'${d}':[`)),'all numeric tile ID characters must have engraving stencils');
-console.log('LEDSign geometry smoke tests passed:',tested,'tile outline cases including ellipse/shield/hexagon silhouettes, plus connector and seam cases.');
+console.log('LEDSign geometry smoke tests passed:',tested,'panel, silhouette, connector and adjacent-tile seam cases.');
