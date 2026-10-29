@@ -28,6 +28,26 @@ for(const joint of ['dovetail','puzzle','none']){
   tested++;
  }
 }
+
+// Assert the edges emitted by full neighboring tile outlines—not just edgePoints in isolation—mate in both grid directions.
+function pointsOnVerticalSeam(poly,xMin=199.999,xMax=208.001){return poly.filter(p=>p[1]>10&&p[1]<140&&p[0]>=xMin&&p[0]<=xMax);}
+function pointsOnHorizontalSeam(poly,yMin=149.999,yMax=158.001){return poly.filter(p=>p[0]>10&&p[0]<210&&p[1]>=yMin&&p[1]<=yMax);}
+for(const joint of ['dovetail','puzzle','none']){
+ for(const style of ['rounded','square']){
+  const left=panelOutline(0,0,2,1,200,150,style,joint,7,24,9);
+  const right=panelOutline(1,0,2,1,200,150,style,joint,7,24,9).map(p=>[p[0]+200,p[1]]);
+  const ls=pointsOnVerticalSeam(left),rs=pointsOnVerticalSeam(right);
+  assert.equal(ls.length,rs.length,joint+'/'+style+' left-right seam vertex count mismatch');
+  assert.ok(ls.every((p,i)=>close(p,rs[rs.length-1-i])),joint+'/'+style+' left-right tile seam mismatch');
+  const top=panelOutline(0,0,1,2,220,150,style,joint,7,24,9);
+  const bottom=panelOutline(0,1,1,2,220,150,style,joint,7,24,9).map(p=>[p[0],p[1]+150]);
+  const ts=pointsOnHorizontalSeam(top,149.999,158.001),bs=pointsOnHorizontalSeam(bottom,149.999,158.001);
+  assert.equal(ts.length,bs.length,joint+'/'+style+' top-bottom seam vertex count mismatch');
+  assert.ok(ts.every((p,i)=>close(p,bs[bs.length-1-i])),joint+'/'+style+' top-bottom tile seam mismatch');
+  tested+=2;
+ }
+}
+
 assert.ok(app.includes('function unionCenterlineChannelsByLetter'));
 assert.ok(app.includes("artCenterX=(b.minX+b.maxX)/2"));
 assert.ok(app.includes("font.charToGlyph(ch)"));
@@ -35,4 +55,4 @@ assert.ok(app.includes("function beginLetterPointer"));
 assert.ok(app.includes("function alignSelectedLetters"));
 assert.ok(app.includes("g.translate(0,0,-thickness-.01)"));
 assert.ok(app.includes("function addRearWireRoutes"));
-console.log('LEDSign geometry smoke tests passed:',tested,'panel outlines plus horizontal/vertical mating profiles for dovetail, puzzle and flat seams.');
+console.log('LEDSign geometry smoke tests passed:',tested,'panel outline cases, edge mating cases and full neighboring-tile seam cases.');
