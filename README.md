@@ -38,3 +38,7 @@ Text mode defaults to a browser-side raster skeleton trace. It thins filled font
 
 ## Letter selection and alignment
 For text input, each glyph receives a group ID and is centerline-traced independently so it can be selected in the 3D viewport. Enable Letter select/move, click a glyph, drag it in the sign plane, and Shift/Ctrl-click to multi-select. Center/left/right/top/bottom actions align the selected group as a whole to the overall artwork bounds. The backplane is regenerated to the new combined bounds. Uploaded SVG files are grouped by path id or path number, so a combined single-path logo is not split into individual letters automatically.
+
+
+## Geometry validation matrix
+The source-level smoke checks cover the two matching edge profiles, rounded/square panel outline generation, target-box centering, glyph grouping, channel smoothing and letter alignment. Browser-side CSG unions and recess/cut operations remain dependent on the external module and require real-browser/slicer acceptance; geometry settings should not be considered production-qualified until those tests pass.

@@ -39,6 +39,7 @@ function chaikinOpen(points){
  for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1];out.push(new THREE.Vector2(a.x*.75+b.x*.25,a.y*.75+b.y*.25),new THREE.Vector2(a.x*.25+b.x*.75,a.y*.25+b.y*.75));}
  out.push(points.at(-1).clone());return out;
 }
+function chaikinClosed(points){if(points.length<4)return points;const out=[];for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];out.push(new THREE.Vector2(a.x*.75+b.x*.25,a.y*.75+b.y*.25),new THREE.Vector2(a.x*.25+b.x*.75,a.y*.25+b.y*.75));}return out;}
 function normalizeSvg(parsed){
  const b=svgBounds(parsed),target=Math.max(1,+$('artWidth').value||400),targetH=Math.max(1,+$('artHeight').value||200),s=Math.min(target/b.width,targetH/b.height),paths=[];
  for(let i=0;i<parsed.paths.length;i++){
@@ -48,7 +49,7 @@ function normalizeSvg(parsed){
    const points=sample.map(p=>new THREE.Vector2((p.x-b.cx)*s,-(p.y-b.cy)*s));
    const closed=points.length>2&&points[0].distanceTo(points[points.length-1])<.01;
    let clean=closed?points.slice(0,-1):points.filter((p,k,a)=>k===0||p.distanceTo(a[k-1])>.01);
-   if(meta.isCenterline&&!closed){clean=simplifyPolyline(clean,Math.max(.12,Math.min(.5,+$('smoothness').value*.055)));clean=chaikinOpen(clean);}
+   if(meta.isCenterline){if(closed)clean=chaikinClosed(clean);else{clean=simplifyPolyline(clean,Math.max(.12,Math.min(.5,+$('smoothness').value*.055)));clean=chaikinOpen(clean);}}
    if(clean.length>=2)paths.push({points:clean,closed,filled:path.userData?.style?.fill!=='none'&&path.userData?.style?.fill!==undefined,pathIndex:i,subIndex:j,groupId:meta.groupId,groupLabel:meta.groupLabel,isCenterline:meta.isCenterline});
   }
  }
@@ -87,7 +88,7 @@ async function unionGeometries(geometries){
 }
 async function unionCenterlineChannelsByLetter(){
  const groups=new Map();
- for(const mesh of [...modelRoot.children]){if(!mesh.isMesh||mesh.userData.kind!=='wall'||mesh.userData.groupId===undefined||!mesh.userData.openEnds)continue;const id=String(mesh.userData.groupId);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(mesh);}
+ for(const mesh of [...modelRoot.children]){if(!mesh.isMesh||mesh.userData.kind!=='wall'||mesh.userData.groupId===undefined||!mesh.userData.ledProfile)continue;const id=String(mesh.userData.groupId);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(mesh);}
  for(const [id,meshes] of groups){if(meshes.length<2)continue;
   try{const mergedGeo=await unionGeometries(meshes.map(m=>m.geometry)),first=meshes[0],label=first.userData.groupLabel||id;
    for(const mesh of meshes){modelRoot.remove(mesh);mesh.geometry.dispose();if(Array.isArray(mesh.material))mesh.material.forEach(m=>m.dispose());else mesh.material.dispose();}
