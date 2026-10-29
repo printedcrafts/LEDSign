@@ -4,3 +4,5 @@
 .size-controls{background:#171c29;border:1px solid #363e50;border-radius:9px;padding:10px;margin:0 0 13px}.size-controls h2{margin-top:0}
 
 .wire-buttons{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.wire-buttons button{flex:1;min-width:105px;font-size:10px}.wire-buttons button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
+
+.align-buttons{display:flex;gap:6px;margin:6px 0}.align-buttons button{flex:1;min-width:0}.selection-chips{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0}.selection-chips button{min-height:27px;padding:4px 8px;font-size:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}

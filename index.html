@@ -34,6 +34,17 @@
 <div class="field"><label for="smoothness">Smoothness <span id="smoothValue">6</span></label><input id="smoothness" type="range" min="1" max="12" step="1" value="6"></div>
 </section>
 <div class="divider"></div>
+<section class="controls-section" id="letterTools">
+<h2>Letter selection &amp; alignment</h2>
+<button class="secondary full" id="toggleLetterEdit">Enable letter select / move</button>
+<p class="subtle">Enable this mode, then click a letter to select it and drag to move it. Shift-click or Ctrl-click adds/removes letters from the selection. Dragging a multi-selection preserves spacing.</p>
+<div class="fit-readout" id="letterSelectionStatus">No letters selected.</div>
+<div class="selection-chips" id="letterGroupList"></div>
+<div class="field"><label>Align selected letters</label></div>
+<div class="buttons align-buttons"><button id="alignCenter">Center</button><button id="alignLeft">Left</button><button id="alignRight">Right</button></div>
+<div class="buttons align-buttons"><button id="alignTop">Top</button><button id="alignBottom">Bottom</button></div>
+<p class="subtle">Center aligns the selection's horizontal center to the artwork center. Left/right/top/bottom align the selection's outside edge to the overall artwork bounds.</p>
+</section><div class="divider"></div>
 <section class="controls-section"><h2>Backplane &amp; mounting</h2><label class="check-row" for="backplaneEnabled"><input id="backplaneEnabled" type="checkbox" checked><span><strong>Generate backplane</strong><small>Connected support panels under the lettering</small></span></label>
 <label for="backplaneStyle">Backplane style</label><select id="backplaneStyle"><option value="rounded">Rounded rectangle</option><option value="square">Squared corners</option><option value="contour">Contour / outline around artwork</option></select>
 <div class="field"><label for="backplaneMargin">Margin around artwork <span>mm</span></label><div class="number-control"><input id="backplaneMargin" type="number" min="5" max="100" step="1" value="18"><span>mm</span></div></div>

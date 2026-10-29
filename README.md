@@ -34,3 +34,7 @@ Users can click the 3D sign to draw rear wire routes and place pass-through hole
 
 ## Font centerline tracing
 Text mode defaults to a browser-side raster skeleton trace. It thins filled font outlines with Zhang–Suen thinning, traces skeleton branches into paths, then sweeps an LED-sized channel profile over those centerlines. Adjacent strokes only become one route when the rasterized glyph skeletons actually touch; separate block letters remain separate paths. Script joins and complex counters need visual inspection because raster skeletonization is heuristic.
+
+
+## Letter selection and alignment
+For text input, each glyph receives a group ID and is centerline-traced independently so it can be selected in the 3D viewport. Enable Letter select/move, click a glyph, drag it in the sign plane, and Shift/Ctrl-click to multi-select. Center/left/right/top/bottom actions align the selected group as a whole to the overall artwork bounds. The backplane is regenerated to the new combined bounds. Uploaded SVG files are grouped by path id or path number, so a combined single-path logo is not split into individual letters automatically.
