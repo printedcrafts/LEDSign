@@ -30,3 +30,7 @@ The target width and height box is above the SVG/Text input and has no imposed u
 
 ## User-defined rear wire routing
 Users can click the 3D sign to draw rear wire routes and place pass-through holes. Paired raceway rails generate on the rear face; holes are subtracted through panel tiles and intersecting letter/channel floors using browser-side CSG. The CSG output and route clearance must be checked in a slicer, and routes should not cross tile joints or mounts.
+
+
+## Font centerline tracing
+Text mode defaults to a browser-side raster skeleton trace. It thins filled font outlines with Zhang–Suen thinning, traces skeleton branches into paths, then sweeps an LED-sized channel profile over those centerlines. Adjacent strokes only become one route when the rasterized glyph skeletons actually touch; separate block letters remain separate paths. Script joins and complex counters need visual inspection because raster skeletonization is heuristic.
