@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const app=readFileSync(new URL('../app.js',import.meta.url),'utf8');
 function extract(start,end){const i=app.indexOf(start),j=app.indexOf(end,i);assert.ok(i>=0&&j>i,'could not find '+start);return app.slice(i,j);}
-const geometry=new Function(extract('function edgePoints(','function shapeFromPoints(')+'return {edgePoints,panelOutline};')();
+const geometry=new Function(extract('function edgePoints(','function shapeFromPoints(')+'return {edgePoints,panelOutline,backplaneSilhouette,silhouetteTileOutline};')();
 const skeletonNeighbors=new Function(extract('function skeletonNeighbors(','function normalizeSvg(')+'return skeletonNeighbors;')();
-const {edgePoints,panelOutline}=geometry;
+const {edgePoints,panelOutline,backplaneSilhouette,silhouetteTileOutline}=geometry;
 const close=(a,b,eps=1e-5)=>Math.hypot(a[0]-b[0],a[1]-b[1])<eps;
 const area=p=>p.reduce((s,a,i)=>{const b=p[(i+1)%p.length];return s+a[0]*b[1]-b[0]*a[1];},0)/2;
 function intersects(a,b,c,d){const cross=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);const a1=cross(a,b,c),a2=cross(a,b,d),b1=cross(c,d,a),b2=cross(c,d,b);return a1*a2 < -1e-8 && b1*b2 < -1e-8;}
@@ -56,9 +56,32 @@ assert.ok(app.includes("function beginLetterPointer"));
 assert.ok(app.includes("function alignSelectedLetters"));
 assert.ok(app.includes("g.translate(0,0,-thickness-.01)"));
 assert.ok(app.includes("function addRearWireRoutes"));
+assert.ok(app.includes("function dimensionMm"),"target width/height input-unit conversion must be available");
+assert.ok(app.includes("function rescaleSourceToTarget"),"changing overall size must rescale existing artwork paths");
+assert.ok(app.includes("lineSpacing"),"multiline typography must use line spacing");
+assert.ok(app.includes("backplaneSilhouette(style"),"silhouette styles must reach backplane generation");
+
+for(const style of ['ellipse','shield','hexagon']){
+ for(const [cols,rows] of [[1,1],[2,1],[1,2],[2,2],[3,2]]){
+  const totalW=440,totalH=320,tw=totalW/cols,th=totalH/rows,H=backplaneSilhouette(style,0,0,totalW,totalH);
+  assert.ok(H.length>=6,style+' silhouette should contain a polygon');
+  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+   const x0=-totalW/2+col*tw,y0=-totalH/2+row*th;
+   const local=silhouetteTileOutline(H,[x0,y0,x0+tw,y0+th],col,row,cols,rows,tw,th,'dovetail',7,24);
+   if(local.length<3)continue;
+   const p=local.map(v=>[v[0]+x0,v[1]+y0]),ar=area(p);
+   assert.ok(p.length>=4,style+' tile should have >=4 vertices');
+   assert.ok(p.every(v=>Number.isFinite(v[0])&&Number.isFinite(v[1])),style+' tile should have finite vertices');
+   assert.ok(p.every((v,i)=>!close(v,p[(i+1)%p.length])),style+' tile should not have duplicate adjacent vertices');
+   assert.ok(Math.abs(ar)>10,style+' tile should have nonzero polygon area');
+   assert.ok(simple(p),style+' tile outline should not self-intersect');
+   tested++;
+  }
+ }
+}
 const diagonalOnly=Uint8Array.from([1,0,0,1]);
 assert.deepEqual(skeletonNeighbors(diagonalOnly,2,2,0),[3],'isolated diagonal skeleton link should remain connected');
 const redundantDiagonal=Uint8Array.from([1,1,0,1]);
 assert.deepEqual(skeletonNeighbors(redundantDiagonal,2,2,0),[1],'redundant diagonal link should be suppressed');
 assert.ok([...`0123456789`].every(d=>app.includes(`'${d}':[`)),'all numeric tile ID characters must have engraving stencils');
-console.log('LEDSign geometry smoke tests passed:',tested,'panel outline cases, edge mating cases and full neighboring-tile seam cases.');
+console.log('LEDSign geometry smoke tests passed:',tested,'tile outline cases including ellipse/shield/hexagon silhouettes, plus connector and seam cases.');
