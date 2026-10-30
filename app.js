@@ -250,6 +250,42 @@ function addRearWireRoutes(back){
  if(crossed)setStatus('Rear wiring channels cross one or more tile seams. Channel guards are split at tile boundaries for separate printing.',true);
 }
 
+
+function clipSegmentToRect(a,b,minX,maxX,minY,maxY){
+ const dx=b.x-a.x,dy=b.y-a.y,p=[-dx,dx,-dy,dy],q=[a.x-minX,maxX-a.x,a.y-minY,maxY-a.y];let t0=0,t1=1;
+ for(let i=0;i<4;i++){if(Math.abs(p[i])<1e-10){if(q[i]<0)return null;continue;}const r=q[i]/p[i];if(p[i]<0)t0=Math.max(t0,r);else t1=Math.min(t1,r);if(t0>t1)return null;}
+ return [{x:a.x+t0*dx,y:a.y+t0*dy},{x:a.x+t1*dx,y:a.y+t1*dy}];
+}
+function segmentPolygonBreaks(a,b,poly){
+ const dx=b.x-a.x,dy=b.y-a.y,out=[];
+ for(let i=0;i<poly.length;i++){const c=poly[i],d=poly[(i+1)%poly.length],ex=d[0]-c[0],ey=d[1]-c[1],den=dx*ey-dy*ex;if(Math.abs(den)<1e-10)continue;const t=((c[0]-a.x)*ey-(c[1]-a.y)*ex)/den,u=((c[0]-a.x)*dy-(c[1]-a.y)*dx)/den;if(t>1e-7&&t<1-1e-7&&u>=-1e-7&&u<=1+1e-7)out.push(t);}
+ return out;
+}
+function clipRouteToTile(points,tile){
+ const gap=.35,poly=tile.outline||[[tile.x0,tile.y0],[tile.x0+tile.w,tile.y0],[tile.x0+tile.w,tile.y0+tile.h],[tile.x0,tile.y0+tile.h]],parts=[];let current=null;
+ const push=(a,b)=>{if(Math.hypot(a.x-b.x,a.y-b.y)<.05)return;if(current&&Math.hypot(current.at(-1).x-a.x,current.at(-1).y-a.y)<.08)current.push(b);else{current=[a,b];parts.push(current);}};
+ for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],seg=clipSegmentToRect(a,b,tile.x0+gap,tile.x0+tile.w-gap,tile.y0+gap,tile.y0+tile.h-gap);if(!seg){current=null;continue;}const s=seg[0],e=seg[1],dx=e.x-s.x,dy=e.y-s.y,ts=[0,...segmentPolygonBreaks(s,e,poly),1].sort((x,y)=>x-y);let used=false;
+  for(let k=1;k<ts.length;k++){const t0=ts[k-1],t1=ts[k],mid=(t0+t1)/2,mx=s.x+dx*mid,my=s.y+dy*mid;if(!pointInPolygon2D(mx,my,poly)){current=null;continue;}const p0={x:s.x+dx*t0,y:s.y+dy*t0},p1={x:s.x+dx*t1,y:s.y+dy*t1};push(p0,p1);used=true;}
+  if(!used)current=null;
+ }
+ return parts.filter(p=>p.length>1);
+}
+function addWireChannelGuards(back){
+ if(!guardRoot)return;disposeGroup(guardRoot);if(!$('generateWireGuards').checked||!back.thickness||!wireRoutes.length){updateWireGuardUI();return;}
+ const dim=wireChannelDimensions(back.thickness);let count=0;
+ for(let ri=0;ri<wireRoutes.length;ri++)for(const tile of back.tiles)for(const points of clipRouteToTile(wireRoutes[ri].points,tile)){
+  if(points.reduce((len,p,i)=>i?len+Math.hypot(p.x-points[i-1].x,p.y-points[i-1].y):0,0)<4)continue;
+  const g=sweepGeometry(points.map(p=>new THREE.Vector2(p.x,p.y)),wireGuardProfile(dim),false,true);g.translate(0,0,-back.thickness);
+  const mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:'#d2a878',metalness:.12,roughness:.7,side:THREE.DoubleSide}));
+  mesh.name='Dovetail wire channel guard '+(++count);mesh.userData={kind:'wire-channel-guard',routeIndex:ri,tileId:tile.id};guardRoot.add(mesh);
+ }
+ updateWireGuardUI();
+}
+function updateWireGuardUI(){
+ const button=$('downloadGuards'),readout=$('wireGuardReadout');if(!button)return;
+ const enabled=$('generateWireGuards').checked,available=!!guardRoot?.children.length;button.hidden=!enabled;button.disabled=!available;
+ if(readout){readout.hidden=!enabled;readout.textContent=available?guardRoot.children.length+' removable dovetail guard section(s) generated. Download separately from the backplane.':wireRoutes.length?'No printable guard sections were generated for the current routes.':'Finish a rear wire route to generate printable guard sections.';}
+}
 function wireOverlayZ(){return wireBackZ-.55;}
 function refreshWireOverlay(){
  // Lightweight overlay just behind the plate: saved routes, the route being drawn, its rubber-band segment and hole markers.

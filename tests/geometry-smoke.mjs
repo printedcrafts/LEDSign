@@ -165,6 +165,12 @@ assert.ok(Math.abs(guard[0][0])>Math.abs(groove[0][0]),'guard cap must overlap t
 assert.ok(Math.abs(guard[4][0])<Math.abs(groove[2][0]),'guard dovetail head must fit inside the undercut cavity');
 assert.ok(app.includes("function addWireChannelGuards"),"optional printable channel guards must be generated");
 assert.ok(app.includes("function exportChannelGuardsSTL"),"channel guards need an independent STL export");
+
+const clipGeometry=new Function(extract('function pointInPolygon2D(','function eyeletPointsForBounds(')+extract('function clipSegmentToRect(','function addWireChannelGuards(')+'return {clipRouteToTile};')();
+const tileA={x0:0,y0:0,w:100,h:80,outline:[[0,0],[100,0],[100,80],[0,80]]};
+const routeParts=clipGeometry.clipRouteToTile([{x:-10,y:40},{x:110,y:40}],tileA);
+assert.equal(routeParts.length,1,'one route crossing a tile should produce one local guard');
+assert.ok(routeParts[0][0].x>=.35&&routeParts[0].at(-1).x<=99.65,'guard segment must stop short of tile seams');
 const snapped=snapWirePoint({x:0,y:0},{x:10,y:9});assert.ok(Math.abs(snapped.x-snapped.y)<1e-9&&Math.abs(Math.hypot(snapped.x,snapped.y)-Math.hypot(10,9))<1e-9,'Shift must snap a wire segment to 45° and keep its length');
 assert.ok(app.includes('if(fitOnBuild){fitCamera();fitOnBuild=false;}'),'rebuilds must not re-fit the camera');
 assert.ok(app.includes('function placeLineChannels'),'overlapping letters must be joined on every build');
