@@ -200,7 +200,7 @@ function wireChannelDimensions(backplaneThickness){
 }
 function wireGrooveProfile(dim){
  const m=dim.width/2,c=dim.cavityWidth/2,d=dim.depth;
- return [[-m,-.025],[m,-.025],[c,d+.025],[-c,d+.025]];
+ return [[-m,-.025],[m,-.025],[c,d],[-c,d]];
 }
 function wireGuardProfile(dim){
  const m=dim.width/2-.25,c=dim.cavityWidth/2-dim.guardClearance,cap=m+dim.capOverhang;

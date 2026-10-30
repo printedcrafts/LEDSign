@@ -159,6 +159,7 @@ const wireDollar=id=>({value:id==='wireRouteWidth'?'7':'2'});
 const wireProfiles=new Function('$',extract('function wireChannelDimensions(','function wireChannelCutter(')+'return {wireChannelDimensions,wireGrooveProfile,wireGuardProfile};')(wireDollar);
 const dims=wireProfiles.wireChannelDimensions(3),groove=wireProfiles.wireGrooveProfile(dims),guard=wireProfiles.wireGuardProfile(dims);
 assert.ok(3-dims.depth>=dims.frontSkin-1e-9,'rear channel must preserve at least 0.8 mm of front skin');
+assert.ok(Math.abs(groove[2][1]-dims.depth)<1e-9,'channel cutter must not overrun the calculated depth into the front skin');
 assert.ok(groove[0][0]===-3.5&&groove[1][0]===3.5,'dovetail groove mouth must match the configured opening width');
 assert.ok(Math.abs(groove[2][0])>Math.abs(groove[1][0]),'dovetail groove must widen below the rear opening');
 assert.ok(Math.abs(guard[0][0])>Math.abs(groove[0][0]),'guard cap must overlap the rear opening');
