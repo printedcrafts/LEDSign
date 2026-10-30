@@ -11,6 +11,8 @@
 
 .unit-entry-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.input-tabs.compact{margin:0;max-width:96px}.input-tabs.compact button{padding:5px 9px;font-size:10px}.line-spacing-field{margin-top:12px}
 
-.validation-summary{white-space:pre-line;color:#ffc0c8;border:1px solid #8e3546;background:#35151d;margin-top:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
+.validation-summary{white-space:pre-line;color:#ffc0c8;border:1px solid #8e3546;background:#35151d;margin-top:10px}
+.warning-summary{white-space:pre-line;color:#ffe3a3;border:1px solid #8a6a1f;background:#2b2310;margin-top:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
 
-.validation-summary{white-space:pre-line;color:#ffc0c8;border:1px solid #8e3546;background:#35151d;margin-top:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
+.validation-summary{white-space:pre-line;color:#ffc0c8;border:1px solid #8e3546;background:#35151d;margin-top:10px}
+.warning-summary{white-space:pre-line;color:#ffe3a3;border:1px solid #8a6a1f;background:#2b2310;margin-top:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
