@@ -193,6 +193,9 @@ assert.ok(app.includes('function clipCustomBackplaneTile'),'custom backplane geo
 assert.ok(app.includes('function customArtworkFits'),'custom backplane must validate artwork and channel clearance');
 assert.ok(app.includes('backplaneRegions.length?regionContainsPoint'),'backplane containment must account for custom cutouts');
 assert.ok(app.includes('function profileCustomTileContour'),'custom backplane seams must retain the selected tile-joint profile');
+assert.ok(app.includes('const directEyeletIds=new Set()'),'eyelet holes must have a direct-extrusion path for single tiles');
+assert.ok(app.includes('eyeletHoleCutter(h,thick)'),'eyelet holes crossing a tile seam need a Boolean fallback');
+assert.ok(app.includes('tile.regions||[{outer:tile.outline'),'rear channel guards must respect disconnected tile regions and internal holes');
 assert.ok(app.includes('function regionContainsPoint'),'custom cutouts must be excluded from valid plate points');
 assert.ok(app.includes('wireHoles.filter(h=>!h.validationError'),'invalid holes must never be included in the CSG cuts');
 assert.ok(app.includes('function equalSpacingDeltas'),'equal letter spacing should be a reusable geometry calculation');

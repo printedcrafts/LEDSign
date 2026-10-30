@@ -182,7 +182,7 @@ function pointSegmentDistance2D(x,y,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.
 function mountEdgeClearance(x,y){return regionBoundaryDistance(backplaneRegions.length?backplaneRegions:[{outer:backplaneBoundary,holes:[]}],x,y);}
 function mountArtworkClearance(x,y){
  const radius=Math.max(7,(rearGhostWidths.outer||13)/2+3);let best=Infinity;
- for(const path of rearGhostPaths)for(let i=1;i<path.points.length;i++)best=Math.min(best,pointSegmentDistance2D(x,y,[path.points[i-1].x,path.points[i-1].y],[path.points[i].x,path.points[i].y]));
+ for(const path of rearGhostPaths){const count=path.closed?path.points.length:path.points.length-1;for(let i=0;i<count;i++){const a=path.points[i],b=path.points[(i+1)%path.points.length];best=Math.min(best,pointSegmentDistance2D(x,y,[a.x,a.y],[b.x,b.y]));}}
  return best-radius;
 }
 function mountPointFits(x,y,ignoreIds=new Set()){
@@ -300,10 +300,10 @@ function customArtworkFits(regions,paths,clearance){
   if(!pointInPolygon2D(x,y,r.outer)||(r.holes||[]).some(h=>pointInPolygon2D(x,y,h)))return false;
   const contours=[r.outer,...(r.holes||[])],d=Math.min(...contours.flatMap(poly=>poly.map((p,i)=>pointSegmentDistance2D(x,y,p,poly[(i+1)%poly.length]))));return d>=clearance;
  });
- for(const path of paths||[])for(let i=1;i<path.points.length;i++){
-  const a=path.points[i-1],b=path.points[i],len=a.distanceTo(b),steps=Math.max(1,Math.ceil(len/5));
+ for(const path of paths||[]){const count=path.closed?path.points.length:path.points.length-1;for(let i=0;i<count;i++){
+  const a=path.points[i],b=path.points[(i+1)%path.points.length],len=a.distanceTo(b),steps=Math.max(1,Math.ceil(len/5));
   for(let k=0;k<=steps;k++){const t=k/steps;if(!test(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return false;}
- }
+ }}
  return true;
 }
 function profileCustomTileContour(world,x0,y0,tw,th,col,row,cols,rows,joint,depth,jw){
@@ -397,7 +397,7 @@ function validateWireHole(h,paths,thickness){
  const edge=regionBoundaryDistance(backplaneRegions.length?backplaneRegions:[{outer:backplaneBoundary,holes:[]}],h.x,h.y);
  if(edge<radius+.8)return 'Hole is too close to the backplane edge; keep the full opening inside the solid plate.';
  const textClearance=Math.max(2,(rearGhostWidths.outer||13)/2)+radius+1;
- for(const path of paths||[])for(let i=1;i<path.points.length;i++)if(pointSegmentDistance2D(h.x,h.y,[path.points[i-1].x,path.points[i-1].y],[path.points[i].x,path.points[i].y])<textClearance)return 'Hole overlaps or is too close to the lettering / LED channel.';
+ for(const path of paths||[]){const count=path.closed?path.points.length:path.points.length-1;for(let i=0;i<count;i++){const a=path.points[i],b=path.points[(i+1)%path.points.length];if(pointSegmentDistance2D(h.x,h.y,[a.x,a.y],[b.x,b.y])<textClearance)return 'Hole overlaps or is too close to the lettering / LED channel.';}}
  const dim=wireChannelDimensions(thickness||+$('backplaneThickness').value||3);
  for(const route of wireRoutes)for(let i=1;i<route.points.length;i++)if(pointSegmentDistance2D(h.x,h.y,[route.points[i-1].x,route.points[i-1].y],[route.points[i].x,route.points[i].y])<radius+dim.cavityWidth/2+1)return 'Hole overlaps or is too close to a rear wiring channel.';
  for(const p of eyeletPointsForBoundsRaw(backplaneBounds))if(Math.hypot(h.x-p.x,h.y-p.y)<radius+3.2+1)return 'Hole overlaps or is too close to a mounting point.';
@@ -456,16 +456,17 @@ async function addBackplane(b,paths,reach=0){
    else{outline=panelOutline(col,row,cols,rows,tw,th,style,joint,depth,jw,9);if(outline.length>=3)tileParts=[{shape:shapeFromPoints(outline),outer:outline.map(p=>[p[0]+x0,p[1]+y0]),holes:[]}];}
   }
   if(!tileParts.length)continue;
-  const tileOutlines=tileParts.map(p=>p.outer),tileHoles=tileParts.flatMap(p=>p.holes||[]),tile={id:'T'+String(row+1).padStart(2,'0')+'-'+String(col+1).padStart(2,'0'),x0,y0,w:tw,h:th,outline:tileOutlines[0],outlines:tileOutlines,holes:tileHoles};
+  const tileOutlines=tileParts.map(p=>p.outer),tileHoles=tileParts.flatMap(p=>p.holes||[]),tileRegions=tileParts.map(p=>({outer:p.outer,holes:p.holes||[]})),tile={id:'T'+String(row+1).padStart(2,'0')+'-'+String(col+1).padStart(2,'0'),x0,y0,w:tw,h:th,outline:tileOutlines[0],outlines:tileOutlines,holes:tileHoles,regions:tileRegions};
   backplaneTileRegions.push(...tileOutlines);backplaneHoleRegions.push(...tileHoles);
-  for(const h of eyelets){const part=tileParts.find(p=>pointInPolygon2D(h.x,h.y,p.outer)&&!(p.holes||[]).some(poly=>pointInPolygon2D(h.x,h.y,poly)));if(part&&mountPointFits(h.x,h.y,new Set([h.id]))){const hole=new THREE.Path();hole.absarc(h.x-x0,h.y-y0,3.2,0,Math.PI*2,true);part.shape.holes.push(hole);}}
+  const directEyeletIds=new Set();
+  for(const h of eyelets){const part=tileParts.find(p=>pointInPolygon2D(h.x,h.y,p.outer)&&!(p.holes||[]).some(poly=>pointInPolygon2D(h.x,h.y,poly)));if(part&&mountPointFits(h.x,h.y,new Set([h.id]))){const contours=[part.outer,...(part.holes||[])],edgeDistance=Math.min(...contours.flatMap(poly=>poly.map((p,i)=>pointSegmentDistance2D(h.x,h.y,p,poly[(i+1)%poly.length])))),seamDistance=Math.min(h.x-x0,x0+tw-h.x,h.y-y0,y0+th-h.y);if(edgeDistance>3.3&&seamDistance>3.3){const hole=new THREE.Path();hole.absarc(h.x-x0,h.y-y0,3.2,0,Math.PI*2,true);part.shape.holes.push(hole);directEyeletIds.add(h.id);}}}
   const geos=tileParts.map(part=>new THREE.ExtrudeGeometry(part.shape,{depth:thick,bevelEnabled:false,curveSegments:8})),baseGeo=geos.length===1?geos[0]:mergeGeometries(geos,false);
   if(!baseGeo){geos.forEach(g=>g.dispose());throw new Error('Could not combine custom backplane regions for tile '+tile.id+'.');}
   if(geos.length>1)geos.forEach(g=>g.dispose());baseGeo.translate(x0,y0,-thick);let finalGeo=baseGeo,idSuccess=!$('embossIds').checked;
-  const idCuts=$('embossIds').checked?idEngravingCuts(tile,thick):[],wireCuts=wireHoles.filter(h=>!h.validationError&&h.x>=x0-.02&&h.x<=x0+tw+.02&&h.y>=y0-.02&&h.y<=y0+th+.02).map(h=>holeCutter(h,thick)),routeCuts=wireRoutes.filter(route=>{const xs=route.points.map(p=>p.x),ys=route.points.map(p=>p.y),pad=wireChannelDimensions(thick).cavityWidth/2+1;return Math.max(...xs)>=x0-pad&&Math.min(...xs)<=x0+tw+pad&&Math.max(...ys)>=y0-pad&&Math.min(...ys)<=y0+th+pad;}).map(route=>wireChannelCutter(route,thick)).filter(Boolean),cuts=[...idCuts,...wireCuts,...routeCuts];
+  const idCuts=$('embossIds').checked?idEngravingCuts(tile,thick):[],eyeletCuts=eyelets.filter(h=>!directEyeletIds.has(h.id)&&h.x+3.2>=x0-.02&&h.x-3.2<=x0+tw+.02&&h.y+3.2>=y0-.02&&h.y-3.2<=y0+th+.02).map(h=>eyeletHoleCutter(h,thick)),wireCuts=wireHoles.filter(h=>!h.validationError&&h.x>=x0-.02&&h.x<=x0+tw+.02&&h.y>=y0-.02&&h.y<=y0+th+.02).map(h=>holeCutter(h,thick)),routeCuts=wireRoutes.filter(route=>{const xs=route.points.map(p=>p.x),ys=route.points.map(p=>p.y),pad=wireChannelDimensions(thick).cavityWidth/2+1;return Math.max(...xs)>=x0-pad&&Math.min(...xs)<=x0+tw+pad&&Math.max(...ys)>=y0-pad&&Math.min(...ys)<=y0+th+pad;}).map(route=>wireChannelCutter(route,thick)).filter(Boolean),cuts=[...idCuts,...eyeletCuts,...wireCuts,...routeCuts];
   if(cuts.length){
    try{finalGeo=await subtractSolids(baseGeo,cuts);idSuccess=true;}
-   catch(error){cuts.forEach(g=>g.dispose());if(wireCuts.length)throw new Error('Could not cut a valid pass-through hole through the backplane: '+error.message);if(routeCuts.length)buildValidationErrors.push('Could not carve a rear wiring channel into tile '+tile.id+': '+error.message+' The current preview keeps the solid tile; fix the geometry issue before exporting.');else if(idCuts.length)setStatus('Could not countersink tile IDs: '+error.message+'. The plate remains visible without those decorative IDs.',true);}
+   catch(error){cuts.forEach(g=>g.dispose());if(wireCuts.length||eyeletCuts.length)throw new Error('Could not cut a valid mounting or pass-through hole through the backplane: '+error.message);if(routeCuts.length)buildValidationErrors.push('Could not carve a rear wiring channel into tile '+tile.id+': '+error.message+' The current preview keeps the solid tile; fix the geometry issue before exporting.');else if(idCuts.length)setStatus('Could not countersink tile IDs: '+error.message+'. The plate remains visible without those decorative IDs.',true);}
   }
   if($('embossIds').checked&&idSuccess)addTileIdPreview(tile,thick);
   addMesh(finalGeo,{name:'Backplane '+tile.id,color:'#687487',userData:{kind:'backplane',tileId:tile.id,tileX:col+1,tileY:row+1}});tiles.push(tile);
@@ -492,7 +493,7 @@ function segmentPolygonBreaks(a,b,poly){
  return out;
 }
 function clipRouteToTile(points,tile){
- const gap=.35,outers=tile.outlines||[tile.outline||[[tile.x0,tile.y0],[tile.x0+tile.w,tile.y0],[tile.x0+tile.w,tile.y0+tile.h],[tile.x0,tile.y0+tile.h]]],boundaries=[...outers,...(tile.holes||[])],contains=(x,y)=>outers.some(poly=>pointInPolygon2D(x,y,poly))&&!(tile.holes||[]).some(poly=>pointInPolygon2D(x,y,poly)),parts=[];let current=null;
+ const gap=.35,regions=tile.regions||[{outer:tile.outline||[[tile.x0,tile.y0],[tile.x0+tile.w,tile.y0],[tile.x0+tile.w,tile.y0+tile.h],[tile.x0,tile.y0+tile.h]],holes:tile.holes||[]}],boundaries=regions.flatMap(r=>[r.outer,...(r.holes||[])]),contains=(x,y)=>regions.some(r=>pointInPolygon2D(x,y,r.outer)&&!(r.holes||[]).some(poly=>pointInPolygon2D(x,y,poly))),parts=[];let current=null;
  const push=(a,b)=>{if(Math.hypot(a.x-b.x,a.y-b.y)<.05)return;if(current&&Math.hypot(current.at(-1).x-a.x,current.at(-1).y-a.y)<.08)current.push(b);else{current=[a,b];parts.push(current);}};
  for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],seg=clipSegmentToRect(a,b,tile.x0+gap,tile.x0+tile.w-gap,tile.y0+gap,tile.y0+tile.h-gap);if(!seg){current=null;continue;}const s=seg[0],e=seg[1],dx=e.x-s.x,dy=e.y-s.y,ts=[0,...boundaries.flatMap(poly=>segmentPolygonBreaks(s,e,poly)),1].sort((x,y)=>x-y);let used=false;
   for(let k=1;k<ts.length;k++){const t0=ts[k-1],t1=ts[k],mid=(t0+t1)/2,mx=s.x+dx*mid,my=s.y+dy*mid;if(!contains(mx,my)){current=null;continue;}const p0={x:s.x+dx*t0,y:s.y+dy*t0},p1={x:s.x+dx*t1,y:s.y+dy*t1};push(p0,p1);used=true;}
