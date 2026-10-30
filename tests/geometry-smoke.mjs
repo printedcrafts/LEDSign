@@ -140,6 +140,18 @@ routes=cleanSkeleton([[...pix([10,10],[40,10]),...pix([40,10],[40,40]).slice(1),
 assert.ok(routes.length===1&&routes[0].closed,'a loop must stay one closed route');
 tested+=3;
 
+// Alignment and wire snapping helpers.
+const {unionBox,alignDeltas}=new Function(extract('function unionBox(','function alignSelectedLetters(')+'return {unionBox,alignDeltas};')();
+const Bx=(x0,x1,y0,y1)=>({minX:x0,maxX:x1,minY:y0,maxY:y1}),frame=Bx(0,100,0,50),one=[Bx(120,140,10,70)];
+for(const [mode,want] of [['top',[0,-20]],['bottom',[0,-10]],['middle',[0,-15]],['left',[-120,0]],['right',[-40,0]],['center',[-80,0]]])assert.deepEqual(alignDeltas(mode,one,frame)[0],want,mode+' alignment');
+assert.deepEqual(alignDeltas('slope45',[Bx(0,20,0,40),Bx(40,60,0,40),Bx(80,100,10,50)],null),[[0,0],[0,40],[0,70]],'45° incline must put letter centres on a rising 45° line from the leftmost letter');
+assert.deepEqual(unionBox([Bx(0,1,2,3),Bx(-1,0,5,6)]),Bx(-1,1,2,6),'unionBox');
+const {snapWirePoint}=new Function(extract('function snapWirePoint(','function refreshWireUI(')+'return {snapWirePoint};')();
+const snapped=snapWirePoint({x:0,y:0},{x:10,y:9});assert.ok(Math.abs(snapped.x-snapped.y)<1e-9&&Math.abs(Math.hypot(snapped.x,snapped.y)-Math.hypot(10,9))<1e-9,'Shift must snap a wire segment to 45° and keep its length');
+assert.ok(app.includes('if(fitOnBuild){fitCamera();fitOnBuild=false;}'),'rebuilds must not re-fit the camera');
+assert.ok(app.includes('function placeLineChannels'),'overlapping letters must be joined on every build');
+tested+=10;
+
 const diagonalOnly=Uint8Array.from([1,0,0,1]);
 assert.deepEqual(skeletonNeighbors(diagonalOnly,2,2,0),[3],'isolated diagonal skeleton link should remain connected');
 const redundantDiagonal=Uint8Array.from([1,1,0,1]);

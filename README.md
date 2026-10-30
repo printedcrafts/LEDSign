@@ -29,7 +29,7 @@ The target width and height box is above the SVG/Text input and has no imposed u
 
 
 ## User-defined rear wire routing
-Users can click the 3D sign to draw rear wire routes and place pass-through holes. Paired raceway rails generate on the rear face; holes are subtracted through panel tiles and intersecting letter/channel floors using browser-side CSG. The CSG output and route clearance must be checked in a slicer, and routes should not cross tile joints or mounts.
+Choosing a wire tool turns the view to the back of the sign and locks orbit. Clicks add route points (double-click or Enter finishes, Shift snaps to 45°, Esc cancels) or place pass-through holes; the model only rebuilds when a route is finished or a hole is placed, and the camera is never re-fitted by a rebuild. Paired raceway rails generate on the rear face; holes are subtracted through panel tiles and intersecting letter/channel floors using browser-side CSG. The CSG output and route clearance must be checked in a slicer, and routes should not cross tile joints or mounts.
 
 
 ## Font centerline tracing
@@ -37,7 +37,7 @@ Text mode defaults to a browser-side raster skeleton trace. It thins filled font
 
 
 ## Letter selection and alignment
-For text input, each glyph receives a group ID and is centerline-traced independently so it can be selected in the 3D viewport. Enable Letter select/move, click a glyph, drag it in the sign plane, and Shift/Ctrl-click to multi-select. Center/left/right/top/bottom actions align the selected group as a whole to the overall artwork bounds. The backplane is regenerated to the new combined bounds. Uploaded SVG files are grouped by path id or path number, so a combined single-path logo is not split into individual letters automatically.
+For text input, each glyph receives a group ID and is centerline-traced independently so it can be selected in the 3D viewport. Click a glyph to select it and drag it in the sign plane (no mode switch); Shift/Ctrl-click multi-selects, dragging empty space orbits, and arrow keys nudge 1 mm (Shift: 10 mm). Left/center/right/top/middle/bottom move the selection as one block to match the other letters (or the whole artwork when every letter is selected); 45° incline lines the selected letters' centers up on a rising 45° slope from the leftmost letter. In LED-channel mode, letters whose channels overlap are rebuilt as one joined channel with no walls or end caps inside the overlap; this is recalculated about ten times a second while dragging and exactly when the drag ends. The backplane is regenerated to the new combined bounds. Uploaded SVG files are grouped by path id or path number, so a combined single-path logo is not split into individual letters automatically.
 
 
 ## Geometry validation matrix
