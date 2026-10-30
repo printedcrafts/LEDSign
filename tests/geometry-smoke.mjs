@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const app=readFileSync(new URL('../app.js',import.meta.url),'utf8');
 function extract(start,end){const i=app.indexOf(start),j=app.indexOf(end,i);assert.ok(i>=0&&j>i,'could not find '+start);return app.slice(i,j);}
-const geometry=new Function(extract('function edgePoints(','function shapeFromPoints(')+'return {edgePoints,panelOutline,backplaneSilhouette,silhouetteTileOutline};')();
+const geometry=new Function(extract('function edgePoints(','function shapeFromPoints(')+'return {edgePoints,panelOutline,backplaneSilhouette,silhouetteTileOutline,fitSilhouette};')();
 const skeletonNeighbors=new Function(extract('function skeletonNeighbors(','function normalizeSvg(')+'return skeletonNeighbors;')();
-const {edgePoints,panelOutline,backplaneSilhouette,silhouetteTileOutline}=geometry;
+const {edgePoints,panelOutline,backplaneSilhouette,silhouetteTileOutline,fitSilhouette}=geometry;
+const cleanSkeleton=new Function(extract('function skeletonNeighbors(','function normalizeSvg(')+'return cleanSkeleton;')();
+const {hull,roundOffsetConvex}=new Function(extract('function hull(','function edgePoints(')+'return {hull,roundOffsetConvex};')();
 const close=(a,b,eps=1e-5)=>Math.hypot(a[0]-b[0],a[1]-b[1])<eps;
 const area=p=>p.reduce((s,a,i)=>{const b=p[(i+1)%p.length];return s+a[0]*b[1]-b[0]*a[1];},0)/2;
 function intersects(a,b,c,d){const cross=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);const a1=cross(a,b,c),a2=cross(a,b,d),b1=cross(c,d,a),b2=cross(c,d,b);return a1*a2 < -1e-8 && b1*b2 < -1e-8;}
@@ -49,7 +51,7 @@ for(const joint of ['dovetail','puzzle','none']){
  }
 }
 
-assert.ok(app.includes('function unionCenterlineChannelsByLetter'));
+assert.ok(app.includes('function channelGeometry'),'line-mode channels must be built from 2D offset bands so joints stay open');
 assert.ok(app.includes("artCenterX=(b.minX+b.maxX)/2"));
 assert.ok(app.includes("font.charToGlyph(ch)"));
 assert.ok(app.includes("function beginLetterPointer"));
@@ -98,6 +100,45 @@ for(const style of ['ellipse','shield','hexagon'])for(const joint of ['dovetail'
   assert.ok(samePointMultiset(t,b),style+'/'+joint+' horizontal silhouette seam does not mate ('+cols+'x'+rows+')');tested++;
  }
 }
+
+// Tile corners: only true outer corners may be rounded. Seam corners must stay square, or tiles get slanted edges and the plate is not symmetric.
+for(const style of ['rounded','square'])for(const joint of ['dovetail','none'])for(const [cols,rows] of [[2,1],[1,2],[2,2],[3,2]])for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+ const w=210,h=150,p=panelOutline(col,row,cols,rows,w,h,style,joint,7,24,9);
+ for(const [x,y,outer] of [[0,0,row===0&&col===0],[w,0,row===0&&col===cols-1],[w,h,row===rows-1&&col===cols-1],[0,h,row===rows-1&&col===0]]){
+  const sharp=p.some(v=>close(v,[x,y]));
+  assert.equal(sharp,!(outer&&style==='rounded'),style+'/'+joint+' tile '+col+','+row+' corner '+x+','+y+(sharp?' should be rounded':' must be a square seam corner'));
+ }
+ tested++;
+}
+for(const style of ['rounded','square']){const L=panelOutline(0,0,2,1,200,150,style,'none',7,24,9),R=panelOutline(1,0,2,1,200,150,style,'none',7,24,9).map(v=>[200-v[0],v[1]]);assert.ok(samePointMultiset(L,R),style+' 2x1 tiles must be mirror images');tested++;}
+
+// Contour plate keeps a constant margin; silhouette plates contain the artwork plus margin and stay mirror-symmetric about its centre.
+const artPts=[[-120,-30],[110,-25],[120,35],[-40,60],[-115,42],[0,0],[60,10]].map(([x,y])=>({x,y})),H0=hull(artPts),ring=roundOffsetConvex(H0,24);
+const segDist=(q,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((q[0]-a[0])*dx+(q[1]-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(q[0]-a[0]-t*dx,q[1]-a[1]-t*dy);};
+assert.ok(ring.every(q=>Math.abs(Math.min(...H0.map((a,i)=>segDist(q,a,H0[(i+1)%H0.length])))-24)<1e-6),'contour plate must keep the margin constant all the way around');
+const bbox=pts=>({x0:Math.min(...pts.map(p=>p[0])),x1:Math.max(...pts.map(p=>p[0])),y0:Math.min(...pts.map(p=>p[1])),y1:Math.max(...pts.map(p=>p[1]))}),hb=bbox(H0),rb=bbox(ring);
+assert.ok(Math.abs(hb.x0-rb.x0-24)<.05&&Math.abs(rb.x1-hb.x1-24)<.05&&Math.abs(hb.y0-rb.y0-24)<.05&&Math.abs(rb.y1-hb.y1-24)<.05,'contour margin must be equal on all four sides');
+const insideConvex=(P,q)=>{const s=Math.sign(area(P));return P.every((a,i)=>{const b=P[(i+1)%P.length];return s*((b[0]-a[0])*(q[1]-a[1])-(b[1]-a[1])*(q[0]-a[0]))>=-1e-6;});};
+for(const style of ['ellipse','shield','hexagon']){const c=[(hb.x0+hb.x1)/2,(hb.y0+hb.y1)/2],S=fitSilhouette(backplaneSilhouette(style,c[0],c[1],rb.x1-rb.x0,rb.y1-rb.y0),c,ring);
+ assert.ok(ring.every(q=>insideConvex(S,q)),style+' plate must contain the artwork plus margin');
+ assert.ok(samePointMultiset(S,S.map(v=>[2*c[0]-v[0],v[1]])),style+' plate must be mirror-symmetric about the artwork centre');tested+=2;}
+
+// Skeleton cleanup: thinning spurs are pruned, straight strokes run through junctions, corners and loops stay one route.
+const pix=(a,b)=>{const n=Math.max(Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]));return Array.from({length:n+1},(_,i)=>[Math.round(a[0]+(b[0]-a[0])*i/n),Math.round(a[1]+(b[1]-a[1])*i/n)]);},r8=()=>8;
+// A short real arm (t crossbar) that reaches well past the junction circle must survive pruning.
+let tRoutes=cleanSkeleton([pix([30,40],[30,5]),pix([30,40],[30,90]),pix([30,40],[12,40]),pix([30,40],[50,40])],()=>8);
+assert.equal(tRoutes.length,2,'t crossbar arms must be kept and joined straight through the stem');
+let routes=cleanSkeleton([pix([50,50],[50,10]),pix([50,50],[50,100]),pix([50,50],[90,50]),pix([50,100],[46,104]),pix([50,100],[54,104])],r8);
+assert.equal(routes.length,2,'fork spurs must be pruned and the stem must run straight through the junction');
+const stem=routes.find(r=>Math.abs(r.pts[0][0]-r.pts.at(-1)[0])<2),arm=routes.find(r=>r!==stem);
+assert.ok(stem&&Math.abs(Math.abs(stem.pts[0][1]-stem.pts.at(-1)[1])-90)<1.5,'stem must keep its full length');
+assert.ok(arm&&arm.pts.some(p=>Math.hypot(p[0]-50,p[1]-50)<1e-9),'arm must stay attached at the junction');
+routes=cleanSkeleton([pix([20,80],[20,10]),pix([20,80],[80,80]),pix([20,80],[16,84])],r8);
+assert.equal(routes.length,1,'corner spur must be pruned so an L is one continuous route');
+assert.ok(routes[0].pts.every(p=>p.every(Number.isFinite)),'routes must be finite');
+routes=cleanSkeleton([[...pix([10,10],[40,10]),...pix([40,10],[40,40]).slice(1),...pix([40,40],[10,40]).slice(1),...pix([10,40],[10,10]).slice(1)]],r8);
+assert.ok(routes.length===1&&routes[0].closed,'a loop must stay one closed route');
+tested+=3;
 
 const diagonalOnly=Uint8Array.from([1,0,0,1]);
 assert.deepEqual(skeletonNeighbors(diagonalOnly,2,2,0),[3],'isolated diagonal skeleton link should remain connected');

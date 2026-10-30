@@ -14,8 +14,8 @@ The interface uses a vermilion highlight (`#E34234`) on the dark control-panel a
 6. Check the result in a slicer before printing. The diffuser/acrylic face itself is not exported.
 
 ## Geometry notes
-Filled artwork gets floor extrusions and wall sweeps along closed contours. Line-art mode sweeps a U-channel along vector subpaths. Floor/wall shells overlap slightly so slicers can union them. The face-plate ledge is separate helper geometry and may be toggled per wall in the preview.
-Backplanes support rounded rectangles, square corners and a convex contour approximation around the artwork. Large panels are divided into interlocking printable tiles. Verify the tessellated contour joints, tile size versus bed size, and assembly tolerance in the slicer; these are experimental geometry, not structural certification.
+Filled artwork gets floor extrusions and wall sweeps along closed contours. Line-art and font-centerline mode builds each letter's channel in 2D (outer band minus inner band, round joins, rounded closed ends) and extrudes it, so branches that meet share one open LED channel. This uses `vendor/clipper.js` (clipper-lib 6.4.2, Boost Software License, see `vendor/clipper-LICENSE.txt`), which must be deployed next to `index.html`. Floor/wall shells overlap slightly so slicers can union them. The face-plate ledge is separate helper geometry and may be toggled per wall in the preview.
+Backplanes support rounded rectangles, square corners and a convex contour offset around the artwork. The margin is measured from the outer face of the channel walls and the plate is centered on the artwork; ellipse, shield and hexagon plates are scaled until the walls plus margin fit inside. Large panels are divided into interlocking printable tiles. Verify the tessellated contour joints, tile size versus bed size, and assembly tolerance in the slicer; these are experimental geometry, not structural certification.
 
 Text outlines use OpenType.js in the browser. Built-in font files are fetched from Google Fonts on request; user font files are parsed locally. Artwork is not uploaded. Mounting tabs, eyelets and standoffs are experimental, not load-rated. Check manifoldness, physical fit, LED bend radius, wall thickness, anchors, insulation, strain relief and power supply rating before fabrication or installation.
 
@@ -33,7 +33,7 @@ Users can click the 3D sign to draw rear wire routes and place pass-through hole
 
 
 ## Font centerline tracing
-Text mode defaults to a browser-side raster skeleton trace. It thins filled font outlines with Zhang–Suen thinning, traces skeleton branches into paths, then sweeps an LED-sized channel profile over those centerlines. Adjacent strokes only become one route when the rasterized glyph skeletons actually touch; separate block letters remain separate paths. Script joins and complex counters need visual inspection because raster skeletonization is heuristic.
+Text mode defaults to a browser-side raster skeleton trace. It thins filled font outlines with Zhang–Suen thinning, traces skeleton branches into paths, then sweeps an LED-sized channel profile over those centerlines. Adjacent strokes only become one route when the rasterized glyph skeletons actually touch; separate block letters remain separate paths. Short thinning spurs are pruned, branches that run straight through a junction are joined, and each route is smoothed with junction points held in place. Script joins and complex counters need visual inspection because raster skeletonization is heuristic.
 
 
 ## Letter selection and alignment
