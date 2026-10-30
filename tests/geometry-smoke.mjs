@@ -182,4 +182,16 @@ assert.deepEqual(skeletonNeighbors(diagonalOnly,2,2,0),[3],'isolated diagonal sk
 const redundantDiagonal=Uint8Array.from([1,1,0,1]);
 assert.deepEqual(skeletonNeighbors(redundantDiagonal,2,2,0),[1],'redundant diagonal link should be suppressed');
 assert.ok([...`0123456789`].every(d=>app.includes(`'${d}':[`)),'all numeric tile ID characters must have engraving stencils');
+const spacingDeltas=new Function(extract('function equalSpacingDeltas(','function alignSelectedLetters(')+'return equalSpacingDeltas;')();
+const spaced=spacingDeltas([Bx(0,10,0,10),Bx(20,45,0,10),Bx(60,75,0,10),Bx(90,110,0,10)]);
+assert.ok(Math.abs((20+spaced[1][0]-10)-(60+spaced[2][0]-(45+spaced[1][0])) )<1e-8,'equalized letters must have identical edge-to-edge gaps');
+assert.equal(spaced[0][0],0,'spacing must preserve the leftmost letter');
+assert.equal(spaced[3][0],0,'spacing must preserve the rightmost letter');
+assert.ok(app.includes('function validateWireHole'),'pass-through holes need collision and boundary validation');
+assert.ok(app.includes('!h.validationError&&h.x>=x0-.02'),'invalid pass-through holes must not enter the backplane CSG cut');
+assert.ok(app.includes('function addEyeletPoint'),'mounting points must be addable');
+assert.ok(app.includes('function removeSelectedEyelets'),'mounting points must be removable');
+assert.ok(app.includes('function alignSelectedEyelets'),'mounting points need selection-based alignment');
+assert.ok(app.includes('at least 10 mm of material beyond each hole'),'mount points must maintain a 10 mm material edge clearance');
+assert.ok(app.includes('function centerArtworkOnBackplane'),'explicit artwork centering controls must exist');
 console.log('LEDSign geometry smoke tests passed:',tested,'panel, silhouette, connector and adjacent-tile seam cases.');
