@@ -1,47 +1,75 @@
-# vendor/
+# PrintedCrafts LED Neon Sign Studio
 
-Third-party code that the app loads at runtime. Everything here is served from the same origin as `index.html`, so the app makes **no** requests to a CDN for code.
-Deploy this whole folder next to `index.html`.
+Independent browser-side recreation of the public LED Neon Sign Generator workflow: SVG or text input, channel-letter or line-channel construction, a parameterized 3D preview, and STL/GLB export.
 
-| Package | Version | License | Files |
-|---|---|---|---|
-| three | 0.180.0 | MIT | `three/build/three.module.js`, `three/build/three.core.js`, `three/examples/jsm/{controls/OrbitControls,loaders/SVGLoader,exporters/STLExporter,exporters/GLTFExporter,utils/BufferGeometryUtils}.js` (unmodified copies from the npm package) |
-| three-bvh-csg | 0.0.18 | MIT | `three-bvh-csg.js` (bundle, also contains three-mesh-bvh 0.9.17) |
-| three-mesh-bvh | 0.9.17 | MIT | inside `three-bvh-csg.js` |
-| opentype.js | 1.3.4 | MIT | `opentype.module.js` (unmodified `dist/opentype.module.js`) |
-| clipper-lib | 6.4.2 | Boost | `clipper.js` |
+## Interface theme
+The interface uses a vermilion highlight (`#E34234`) on the dark control-panel and 3D-viewport layout.
 
-`index.html` maps the bare imports `three` and `three/addons/` to these files with an import map. `app.js` loads `three-bvh-csg.js` and `opentype.module.js` on first use with a relative `import()`, and retries with a fresh `?retry=N` URL after a failed download (browsers remember failed module URLs).
+## Workflow
+1. Choose SVG and drop/select a vector file, or switch to Text, type text, choose a font, and build its vector outlines.
+2. Choose Channel letters for filled artwork or LED channel along lines for vector strokes.
+3. Adjust artwork width, walls/floor, optional diffuser ledge, support angle, diffuser thickness and smoothness.
+4. Enable a rounded, square, or contour/outline backplane. Set tile max dimensions (minimum 100 mm), dovetail/puzzle/flat joins, and keyhole/eyelet/standoff mounting options.
+5. Inspect the 3D model, adjust preview finish / feature edges, click a wall to remove or restore its ledge helper, then export STL or GLB.
+6. Check the result in a slicer before printing. The diffuser/acrylic face itself is not exported.
 
-## Regenerating
+## Geometry notes
+Filled artwork gets floor extrusions and wall sweeps along closed contours. Line-art and font-centerline mode builds each letter's channel in 2D (outer band minus inner band, round joins, rounded closed ends) and extrudes it, so branches that meet share one open LED channel. This uses `vendor/clipper.js` (clipper-lib 6.4.2, Boost Software License, see `vendor/clipper-LICENSE.txt`), which must be deployed next to `index.html` together with the rest of the `vendor/` folder (see `vendor/README.md`). Floor/wall shells overlap slightly so slicers can union them. The face-plate ledge is separate helper geometry and may be toggled per wall in the preview.
+Backplanes support rounded rectangles, square corners and a convex contour offset around the artwork. The margin is measured from the outer face of the channel walls and the plate is centered on the artwork; ellipse, shield and hexagon plates are scaled until the walls plus margin fit inside. Large panels are divided into interlocking printable tiles. Verify the tessellated contour joints, tile size versus bed size, and assembly tolerance in the slicer; these are experimental geometry, not structural certification.
 
-```
-npm install three@0.180.0 three-bvh-csg@0.0.18 three-mesh-bvh@0.9.17 opentype.js@1.3.4 esbuild
-npx esbuild node_modules/three-bvh-csg/src/index.js --bundle --format=esm --external:three --outfile=vendor/three-bvh-csg.js
-# then copy the other files listed above from node_modules (same relative paths)
-```
+Text outlines use OpenType.js in the browser. Built-in font files are fetched when first used from the google/fonts GitHub repository (`raw.githubusercontent.com`, pinned to one commit); user font files are parsed locally. Characters the chosen font has no glyph for are left out of the sign and listed in the build warnings. Artwork is not uploaded. Mounting tabs, eyelets and standoffs are experimental, not load-rated. Check manifoldness, physical fit, LED bend radius, wall thickness, anchors, insulation, strain relief and power supply rating before fabrication or installation.
 
-Keep `three-mesh-bvh` at the version above: `three-bvh-csg` only declares `>=0.9.7`, so an unpinned install can pick up breaking changes.
 
-## Fonts
+## LED / neon profile selection
+The selector includes WLED-compatible addressable families, analog single-colour/CCT/RGB/RGBW/RGBCCT tape, and common commercial neon-flex envelopes. Profile dimensions are starting estimates, not guarantees for every SKU: match editable width, height and clearance to the manufacturer's datasheet. Channel width is calculated as strip width plus twice side clearance. Verify wall height, bend direction and minimum bend radius before printing.
 
-The built-in fonts (Roboto, Oswald, Open Sans, Lato) are not stored here. `app.js` fetches them at runtime from `raw.githubusercontent.com/google/fonts/<commit>/ofl/...`, pinned to one commit. To update them, change the commit in `FONT_URLS` and check that all four URLs still return 200. The fonts are licensed under the SIL Open Font License.
 
-## SHA-256 of the vendored files
+## User-controlled sign dimensions
+The target width and height box is above the SVG/Text input and has no imposed upper maximum. Geometry preserves aspect ratio and fits inside the target box. Final print dimensions include the backplane and are shown in millimetres and inches. Letter-channel cross-sections use the selected LED profile width plus side clearance; choosing a taller profile raises the recommended wall height if needed.
 
-```
-76b50f7e7fcf261698c5368737614d54835db3b12999a3d28b365b99c465eff7  vendor/clipper-LICENSE.txt
-a650c6946682edc1a64016f6553eeb5c32ce45eb7ca0ad5d8221961af011d97c  vendor/clipper.js
-a5b87c9bc191e7f9c06b07bd7cbbed3ed846dfdb50e859484b2c245aa1ab2e61  vendor/opentype-LICENSE.txt
-8d79d17388114a29d74681dfaed84068b1d7d9b4e39a9544fb6406d25579ad8f  vendor/opentype.module.js
-9c0532b74be2071ecc3e9a0f05fc6a894e77aeec0b6813d612fea76f64abb4a1  vendor/three-bvh-csg-LICENSE.txt
-1753a8c79e9a91d1da23d1f7af141362a17ba78c5d8e1d899a4689d1795b2d72  vendor/three-bvh-csg.js
-bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601  vendor/three/LICENSE
-eb077d2417f61d3e6d9264c317cabc4ea35769ed6b0ab533067292a550784c20  vendor/three/build/three.core.js
-c8211c69345d2e9949dc7a8ac969380497aa0600a5a8ac6a459c8cd02dd9cb8a  vendor/three/build/three.module.js
-b97879c748170baadeb3fb84cea1ffdf4674e283dc06042f34e2acb95a76042c  vendor/three/examples/jsm/controls/OrbitControls.js
-e7c29444454eb321b39e4c8b3062944f4fd5299a0e7483e9cb8c0594cdec829f  vendor/three/examples/jsm/exporters/GLTFExporter.js
-6508e5f79d120c7fdb677430342179609b27f59942dd6a2e215eef3ff60a7e60  vendor/three/examples/jsm/exporters/STLExporter.js
-90aa8d9c60b4f93f2a482669f5761a530479049a5c42f4bcd32575a43d7a119e  vendor/three/examples/jsm/loaders/SVGLoader.js
-fda7e946b8e0b5ab39b779206589e7a1079a22eb24efb89d7223e03fdfb1f751  vendor/three/examples/jsm/utils/BufferGeometryUtils.js
-```
+
+## User-defined rear wire routing
+Choosing a wire tool turns the view to the back of the sign and locks orbit. Clicks add route points (double-click or Enter finishes, Shift snaps to 45°, Esc cancels) or place pass-through holes; the model only rebuilds when a route is finished or a hole is placed, and the camera is never re-fitted by a rebuild. Paired raceway rails generate on the rear face; holes are subtracted through panel tiles and intersecting letter/channel floors using browser-side CSG. The CSG output and route clearance must be checked in a slicer, and routes should not cross tile joints or mounts.
+
+
+## Font centerline tracing
+Text mode defaults to a browser-side raster skeleton trace. It thins filled font outlines with Zhang–Suen thinning, traces skeleton branches into paths, then sweeps an LED-sized channel profile over those centerlines. Adjacent strokes only become one route when the rasterized glyph skeletons actually touch; separate block letters remain separate paths. Short thinning spurs are pruned, branches that run straight through a junction are joined, and each route is smoothed with junction points held in place. Script joins and complex counters need visual inspection because raster skeletonization is heuristic.
+
+
+## Letter selection and alignment
+For text input, each glyph receives a group ID and is centerline-traced independently so it can be selected in the 3D viewport. Click a glyph to select it and drag it in the sign plane (no mode switch); Shift/Ctrl-click multi-selects, dragging empty space orbits, and arrow keys nudge 1 mm (Shift: 10 mm). Left/right/top/middle/bottom move the selection as one block to line up with the other letters; Mid-line moves each selected letter up or down onto one shared horizontal line without changing its sideways position; 45° incline lines the selected letters' centers up on a rising 45° slope from the leftmost letter. In LED-channel mode, letters whose channels overlap are rebuilt as one joined channel with no walls or end caps inside the overlap; this is recalculated about ten times a second while dragging and exactly when the drag ends. The backplane is regenerated to the new combined bounds. Uploaded SVG files are grouped by path id or path number, so a combined single-path logo is not split into individual letters automatically.
+
+
+## Geometry validation matrix
+`npm test` runs the source-level smoke checks, a CSG regression test (`tests/csg-smoke.mjs`), a mesh-orientation test (`tests/orientation-smoke.mjs`) and a vendor-integrity check. They cover the two matching edge profiles, rounded/square panel outline generation, target-box centering, glyph grouping, channel smoothing and letter alignment. Browser-side CSG unions and recess/cut operations remain dependent on the external module and require real-browser/slicer acceptance; geometry settings should not be considered production-qualified until those tests pass.
+
+
+## Integrated from alternate LEDSign Studio HTML
+Selected compatible features from the alternate single-file implementation were integrated into the modular editor:
+- Additional ellipse, shield/badge and hexagonal backplane silhouettes, clipped per tile so the existing dovetail/puzzle seam machinery is retained.
+- A line-spacing control for multiline typed signs.
+- A millimetre/inch entry-unit switch for target width and height. Switching units converts entered values to preserve physical size, final sizes continue to show both units, and changing the target box re-normalizes the source geometry and scales existing manual letter offsets.
+
+The alternate implementation's Three.js TubeGeometry outline tracing and separate glow tube were not carried over because they do not create the project's required open LED-sized printable channel cross-sections and would regress the existing centerline/CSG architecture.
+
+## Mounting points, holes and validation
+
+The eyelet editor supports adding/removing mounting points, multi-selecting them in the rear view, dragging a selected group, and aligning or distributing only the selected points. The 6.4 mm mounting opening must retain at least 10 mm of solid backplane material beyond its edge. Invalid drag positions are rejected without changing the model.
+
+Pass-through holes are validated against the solid backplane, text / LED channel clearance, rear wiring channels and other mounting or pass-through holes. Invalid holes stay visible in red and are not subtracted from the solid. Manufacturing-critical issues are listed in the validation panel and disable STL exports; the last valid 3D preview stays on screen while the design is corrected.
+
+## Custom SVG backplanes and text layout
+
+Choose **Custom SVG outline** in the backplane style selector and upload a separate SVG. Use filled, closed shapes; compound paths can include internal subpaths that become through-cutouts. The outline is fitted around the current artwork, but the artwork itself is not automatically moved. A custom shape can be tiled using the existing tile sizes and joint profiles.
+
+The backplane is always rebuilt around the outer edges of the artwork, so the artwork stays centered on it. A custom outline is enlarged (up to 3x) until the artwork and its clearance fit inside it. Equalize spacing acts on three or more selected letters, makes edge-to-edge gaps equal and preserves the first and last selected letters. These actions are user-invoked; manual letter placement otherwise remains in place.
+
+## Running and deploying
+
+The app is plain static files: serve the folder over HTTP (ES modules do not load from `file://`), for example `python3 -m http.server` and open `http://localhost:8000`. All JavaScript, including three.js, the CSG library and the font parser, is served from `vendor/`; the only runtime request to another host is the font download from `raw.githubusercontent.com` (and the bundled sample logo is used if that is blocked).
+
+Tests need Node 22 and no packages: `npm test`. `npm run test:network` also checks that the built-in font URLs still return 200.
+
+## Build warnings
+
+Problems that do not stop an export (tiles larger than the print bed, rear channels that cross tile seams, skipped open paths or characters, an enlarged custom outline, tile IDs that could not be engraved) are listed in the *Build warnings* box under the export buttons and stay there until the cause is fixed. Problems that make a part unprintable block the STL export and are listed in the red validation box.

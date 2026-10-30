@@ -1,0 +1,32 @@
+name: LEDSign geometry smoke tests
+on:
+  push:
+    branches:
+      - main
+      - feat/svg-channel-letter-studio
+    paths: &paths
+      - "app.js"
+      - "index.html"
+      - "style.css"
+      - "vendor/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/geometry-smoke.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *paths
+jobs:
+  geometry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax, geometry, CSG, mesh orientation and vendor integrity
+        run: npm test
+      - name: Built-in font URLs are pinned and reachable
+        run: npm run test:network
