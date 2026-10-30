@@ -188,6 +188,11 @@ assert.ok(Math.abs((20+spaced[1][0]-10)-(60+spaced[2][0]-(45+spaced[1][0])) )<1e
 assert.equal(spaced[0][0],0,'spacing must preserve the leftmost letter');
 assert.equal(spaced[3][0],0,'spacing must preserve the rightmost letter');
 assert.ok(app.includes('function validateWireHole'),'pass-through holes need collision and boundary validation');
+assert.ok(app.includes('function parseCustomBackplaneSvg'),'custom backplane SVG import must be available');
+assert.ok(app.includes('function clipCustomBackplaneTile'),'custom backplane geometry must be clipped per tile');
+assert.ok(app.includes('function customArtworkFits'),'custom backplane must validate artwork and channel clearance');
+assert.ok(app.includes('backplaneRegions.length?regionContainsPoint'),'backplane containment must account for custom cutouts');
+assert.ok(app.includes('function profileCustomTileContour'),'custom backplane seams must retain the selected tile-joint profile');
 assert.ok(app.includes('!h.validationError&&h.x>=x0-.02'),'invalid pass-through holes must not enter the backplane CSG cut');
 assert.ok(app.includes('function addEyeletPoint'),'mounting points must be addable');
 assert.ok(app.includes('function removeSelectedEyelets'),'mounting points must be removable');
