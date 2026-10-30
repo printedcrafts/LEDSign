@@ -1,286 +1,799 @@
-"use strict";
-const $=id=>document.getElementById(id), NS='http://www.w3.org/2000/svg';
-const PROFILES={neon6:{w:6,h:12,bend:30},neon8:{w:8,h:16,bend:40},neon10:{w:10,h:20,bend:50},cob8:{w:8,h:3,bend:12}};
-let uploadedFont=null;let lines=[],shapes=[],selected=-1,customFont=null,uploadBusy=false,zoom=1,scene=null,downloadBlob=null;let fontPreviewOnly=false,traceMessage='';
-let manualMode=false, drawing=false, draftLed=[];let wireRoutes=[],wireDraft=[],wireMode='',selectedWireRoute=-1;
-function sourceText(){return $('text').value.slice(0,28)||'Neon';}
-function status(t,bad=false){$('notice').textContent=t;$('notice').className=bad?'messages error':'messages';}
-function createGrid(w,h,fill=0){return {w,h,data:new Uint8Array(w*h).fill(fill)};}
-const idx=(g,x,y)=>y*g.w+x;
-function dilate(g,r){const out=createGrid(g.w,g.h), rad=Math.max(0,Math.ceil(r)), offsets=[];for(let y=-rad;y<=rad;y++)for(let x=-rad;x<=rad;x++)if(x*x+y*y<=r*r+.25)offsets.push([x,y]);for(let y=0;y<g.h;y++)for(let x=0;x<g.w;x++)if(g.data[idx(g,x,y)])for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<g.w&&yy<g.h)out.data[idx(g,xx,yy)]=1;}return out;}
-function count(g){let total=0;for(const value of g.data)total+=value;return total;}
-function skeletonize(input){const g=createGrid(input.w,input.h);g.data.set(input.data);const {w,h}=g;let changed=true,iterations=0;while(changed&&iterations++<75){changed=false;for(let phase=0;phase<2;phase++){const remove=[];for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;if(!g.data[i])continue;const n=[g.data[i-w],g.data[i-w+1],g.data[i+1],g.data[i+w+1],g.data[i+w],g.data[i+w-1],g.data[i-1],g.data[i-w-1]];const s=n.reduce((a,b)=>a+b,0);if(s<2||s>6)continue;let transitions=0;for(let k=0;k<8;k++)if(!n[k]&&n[(k+1)%8])transitions++;if(transitions!==1)continue;if(phase===0?(n[0]*n[2]*n[4]||n[2]*n[4]*n[6]):(n[0]*n[2]*n[6]||n[0]*n[4]*n[6]))continue;remove.push(i);}for(const i of remove)g.data[i]=0;if(remove.length)changed=true;}}return g;}
-
-const glyph={
- a:'M8 67 Q25 20 48 37 Q64 55 45 72 Q21 96 10 70 Q5 48 26 40 M49 37 Q43 79 66 66',
- b:'M8 4 Q8 50 8 75 Q10 86 18 74 M10 60 Q34 24 52 43 Q70 66 43 79 Q25 86 14 69',
- c:'M58 43 Q34 24 13 48 Q-5 78 26 79 Q47 79 62 66',
- d:'M58 8 Q56 52 56 70 Q57 82 69 68 M55 46 Q38 25 18 46 Q-4 76 26 81 Q41 82 54 61',
- e:'M10 61 Q62 66 55 43 Q50 25 25 42 Q-3 60 18 77 Q39 87 65 65',
- f:'M10 75 Q34 49 47 22 Q57 -3 40 5 Q24 8 21 42 L18 97 Q17 116 2 119 M3 49 L53 46',
- g:'M60 39 Q37 20 17 44 Q-5 78 26 79 Q45 77 58 51 M60 37 Q59 71 54 95 Q50 118 24 118 Q8 117 3 108',
- h:'M8 5 Q10 33 8 78 M8 61 Q34 22 47 42 Q55 52 54 72 Q54 79 67 68',
- i:'M19 39 Q16 57 17 74 Q18 82 33 66 M19 17 L20 19',
- j:'M35 40 Q29 62 27 95 Q25 115 8 116 Q-2 113 1 107 M37 17 L38 19',
- k:'M10 6 L10 79 M55 39 Q30 52 11 61 M27 56 Q41 79 61 70',
- l:'M15 5 Q10 35 13 69 Q14 85 34 68',
- m:'M7 43 L8 77 Q13 53 25 43 Q38 29 43 46 Q47 57 42 78 Q55 51 67 42 Q85 29 89 48 Q92 61 85 76 Q94 82 105 67',
- n:'M8 43 L8 77 Q20 52 34 42 Q50 32 53 49 Q55 61 51 76 Q62 80 72 66',
- o:'M48 36 Q28 29 14 47 Q-2 69 18 78 Q42 89 53 61 Q60 44 48 36',
- p:'M9 42 L4 117 M9 66 Q27 30 47 42 Q67 56 48 77 Q32 91 9 69',
- q:'M58 40 Q39 25 18 44 Q-4 75 24 79 Q45 78 58 51 M58 40 L57 115',
- r:'M9 43 L9 79 Q17 51 37 41 Q46 37 53 45',
- s:'M55 40 Q33 28 17 45 Q9 56 30 62 Q62 69 40 78 Q20 86 5 73',
- t:'M30 15 Q23 56 24 74 Q26 88 50 68 M7 47 L56 45',
- u:'M9 42 Q3 68 13 77 Q27 88 45 49 M45 40 Q37 75 55 77 Q63 79 70 67',
- v:'M7 43 Q8 75 22 80 Q39 83 58 41',
- w:'M6 44 Q8 77 22 79 Q32 80 39 59 Q39 80 53 80 Q70 80 83 40',
- x:'M9 43 Q31 62 58 79 M59 40 Q35 55 9 79',
- y:'M7 42 Q10 76 23 77 Q39 80 57 42 M57 42 Q49 89 37 110 Q26 129 7 113',
- z:'M7 44 Q33 39 59 43 Q33 64 10 78 Q36 78 62 75',
- ' ':'', '-':'M6 61 L44 59', '.':'M16 77 L18 79', '!':'M18 9 L17 64 M17 77 L18 79', '?':'M7 25 Q18 2 40 14 Q61 30 35 49 Q19 61 21 64 M21 77 L22 79', '&':'M57 30 Q50 6 31 12 Q9 17 25 43 Q67 87 44 80 Q5 79 12 60 Q23 39 65 41'
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+const $=id=>document.getElementById(id),svgLoader=new SVGLoader(),stlExporter=new STLExporter(),gltfExporter=new GLTFExporter();
+// Built-in fonts are fetched at runtime from the google/fonts repository, pinned to one commit so the files cannot change underneath the app.
+const FONT_URLS={roboto:'https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf',oswald:'https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/oswald/Oswald%5Bwght%5D.ttf',opensans:'https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf',lato:'https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/lato/Lato-Regular.ttf'};
+const LED_PROFILES = {
+neon6x12_12:{label:'Neon flex 6 × 12 mm',width:6,height:12,voltage:'12 V',kind:'neon'},neon6x12_24:{label:'Neon flex 6 × 12 mm',width:6,height:12,voltage:'24 V',kind:'neon'},neon8x16_12:{label:'Top-bend neon flex 8 × 16 mm',width:8,height:16,voltage:'12 V',kind:'neon'},neon8x16_24:{label:'Top-bend neon flex 8 × 16 mm',width:8,height:16,voltage:'24 V',kind:'neon'},neon10x20_12:{label:'Neon flex 10 × 20 mm',width:10,height:20,voltage:'12 V',kind:'neon'},neon10x20_24:{label:'Neon flex 10 × 20 mm',width:10,height:20,voltage:'24 V',kind:'neon'},neon8x16_side:{label:'Side-bend neon flex 8 × 16 mm',width:8,height:16,voltage:'Check SKU',kind:'neon'},
+ws2812b:{label:'WS2812B',width:5,height:2,voltage:'5 V',kind:'addressable'},ws2813:{label:'WS2813',width:5,height:2,voltage:'5 V',kind:'addressable'},ws2811_5:{label:'WS2811',width:10,height:2,voltage:'5 V',kind:'addressable'},ws2811_12:{label:'WS2811',width:10,height:2,voltage:'12 V',kind:'addressable'},sk6812_5:{label:'SK6812',width:10,height:2,voltage:'5 V (variant-dependent)',kind:'addressable'},sk6812_12:{label:'SK6812',width:10,height:2,voltage:'12 V (variant-dependent)',kind:'addressable'},gs8208:{label:'GS8208',width:10,height:2,voltage:'12 V',kind:'addressable'},tm1814:{label:'TM1814',width:10,height:2,voltage:'12 V RGBW',kind:'addressable'},ws2815:{label:'WS2815',width:12,height:2,voltage:'12 V',kind:'addressable'},ws2805:{label:'WS2805',width:12,height:2,voltage:'12 / 24 V RGBCCT',kind:'addressable'},ws2814:{label:'WS2814',width:10,height:2,voltage:'12 / 24 V RGBW',kind:'addressable'},fw1906:{label:'FW1906',width:10,height:2,voltage:'24 V RGBCCT',kind:'addressable'},ucs8903:{label:'UCS8903',width:10,height:2,voltage:'Check exact SKU',kind:'addressable'},apa102:{label:'APA102',width:10,height:2,voltage:'5 V · clock + data',kind:'addressable'},lpd8806:{label:'LPD8806',width:10,height:2,voltage:'5 V · clock + data',kind:'addressable'},ws2801:{label:'WS2801',width:10,height:2,voltage:'5 V · clock + data',kind:'addressable'},sk9822:{label:'SK9822',width:10,height:2,voltage:'5 V · clock + data',kind:'addressable'},lpd6803:{label:'LPD6803',width:10,height:2,voltage:'12 V',kind:'addressable'},p9813:{label:'P9813',width:10,height:2,voltage:'5–24 V (check SKU)',kind:'addressable'},tm1829:{label:'TM1829',width:10,height:2,voltage:'5–24 V (check SKU)',kind:'addressable'},ucs8904:{label:'UCS8904',width:10,height:2,voltage:'5–24 V RGBW (check SKU)',kind:'addressable'},analog_single:{label:'Single-colour analog LED tape',width:8,height:2,voltage:'Typical 12 / 24 V',kind:'analog'},analog_cct:{label:'CCT analog LED tape',width:10,height:2,voltage:'Typical 12 / 24 V',kind:'analog'},analog_rgb:{label:'RGB analog LED tape',width:10,height:2,voltage:'Typical 12 / 24 V',kind:'analog'},analog_rgbw:{label:'RGBW analog LED tape',width:12,height:2,voltage:'Typical 12 / 24 V',kind:'analog'},analog_rgbcct:{label:'RGBCCT analog LED tape',width:12,height:2,voltage:'Typical 12 / 24 V',kind:'analog'},custom:{label:'Custom LED / neon',width:8,height:16,voltage:'Enter from datasheet',kind:'custom'}
 };
-const caps={A:'M5 81 Q26 22 45 6 Q56 35 66 81 M16 54 Q41 49 62 53',B:'M12 10 L11 81 Q68 90 69 61 Q68 46 15 46 Q70 52 63 25 Q59 5 12 10',C:'M64 25 Q46 0 24 17 Q-2 39 16 68 Q36 98 68 65',D:'M12 10 L12 80 Q75 92 76 44 Q75 3 12 10',E:'M62 11 L11 11 L12 80 L64 80 M12 46 L51 45',F:'M12 81 L12 11 L65 11 M12 46 L55 46',G:'M69 24 Q44 -2 22 18 Q0 41 18 69 Q36 94 70 67 L70 49 L45 49',H:'M12 10 L12 81 M65 10 L65 81 M12 46 L65 46',I:'M23 10 L23 81',J:'M49 10 L48 65 Q45 91 14 75',K:'M12 10 L12 81 M65 10 L12 55 M29 44 L68 81',L:'M12 10 L12 80 L65 80',M:'M8 81 L10 10 L40 53 L70 10 L73 81',N:'M12 81 L12 11 L68 81 L68 10',O:'M39 8 Q9 7 9 43 Q9 83 39 83 Q71 83 71 44 Q71 8 39 8',P:'M12 81 L12 10 Q65 4 65 33 Q65 55 12 52',Q:'M39 8 Q9 7 9 43 Q9 83 39 83 Q71 83 71 44 Q71 8 39 8 M49 69 L75 90',R:'M12 81 L12 10 Q65 4 65 33 Q65 54 12 52 M42 52 L70 81',S:'M64 20 Q39 0 19 17 Q4 33 37 46 Q77 63 55 76 Q31 89 9 68',T:'M6 12 L73 12 M39 12 L39 81',U:'M10 10 L10 59 Q10 86 38 83 Q66 81 66 57 L66 10',V:'M8 10 L39 81 L70 10',W:'M5 10 L20 81 L40 42 L60 81 L77 10',X:'M10 10 L70 81 M70 10 L10 81',Y:'M7 10 L38 46 L70 10 M38 46 L38 81',Z:'M10 10 L70 10 L10 81 L70 81'};
-
-function draftPaths(){const text=sourceText(), paths=[];let x=0;for(const letter of text){const raw=/\s/.test(letter)?'':(caps[letter]??glyph[letter.toLowerCase()]??glyph.o);if(!raw){x+=47;continue;}const sections=raw.match(/M[^M]+/g)||[];for(const section of sections){const svg=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('d',section);try{const len=svg.getTotalLength(),pts=[];for(let d=0;d<=len;d+=Math.max(7,len/16)){const pt=svg.getPointAtLength(Math.min(d,len));pts.push({x:pt.x+x,y:pt.y});}const end=svg.getPointAtLength(len);pts.push({x:end.x+x,y:end.y});if(pts.length>=2)paths.push(pts);}catch(err){console.error('Invalid letter vector',letter,err);}}x+=letter==='m'||letter==='w'?106:letter==='i'||letter==='l'?42:78;}if(!paths.length)throw Error('No usable characters.');return paths;}
-function normalizePaths(paths){const points=paths.flat();const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y));const spanX=Math.max(1,maxX-minX),scale=+$('width').value/spanX;const desiredMargin=15;return paths.map(path=>path.map(pt=>({x:(pt.x-minX)*scale+desiredMargin,y:(pt.y-minY)*scale+desiredMargin})));}
-
-// Signature-font conversion: first try centerlines, then bounded contours.
-// The fallback is deliberately explicit: a glyph outline is NOT an LED centerline.
-function contourFallback(mask){
-  const {w,h,data}=mask, visited=new Uint8Array(w*h), paths=[];
-  const solid=(x,y)=>x>=0&&x<w&&y>=0&&y<h&&data[y*w+x];
-  // Build directed perimeter edges for all filled pixels. Interior edges cancel.
-  const edges=new Map();
-  const add=(a,b)=>{let k=a.join(',');if(!edges.has(k))edges.set(k,[]);edges.get(k).push(b);};
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(solid(x,y)){
-    if(!solid(x,y-1))add([x,y],[x+1,y]);
-    if(!solid(x+1,y))add([x+1,y],[x+1,y+1]);
-    if(!solid(x,y+1))add([x+1,y+1],[x,y+1]);
-    if(!solid(x-1,y))add([x,y+1],[x,y]);
-  }
-  const pop=k=>{const q=edges.get(k);if(!q||!q.length)return null;const v=q.pop();if(!q.length)edges.delete(k);return v;};
-  let guard=0;
-  while(edges.size&&guard++<w*h*4){
-    const startKey=edges.keys().next().value;
-    let current=startKey.split(',').map(Number), start=current.join(','),path=[{x:current[0],y:current[1]}];
-    for(let n=0;n<w*h*4;n++){
-      const next=pop(current.join(','));if(!next)break;
-      current=next;path.push({x:current[0],y:current[1]});
-      if(current.join(',')===start)break;
-    }
-    // Ignore speckle, keep connected visible glyph contours.
-    if(path.length>=12){
-      const simplified=[];
-      for(let i=0;i<path.length-1;i++){
-        const prev=path[(i-1+path.length-1)%(path.length-1)],now=path[i],next=path[(i+1)%(path.length-1)];
-        const cross=(now.x-prev.x)*(next.y-now.y)-(now.y-prev.y)*(next.x-now.x);
-        if(Math.abs(cross)>0.01)simplified.push(now);
-      }
-      if(simplified.length>=3){
-        // Sample large contours; retain closed loops.
-        const stride=Math.max(1,Math.ceil(simplified.length/240));
-        const pts=simplified.filter((_,i)=>i%stride===0);
-        if(pts.length>=3){pts.push({...pts[0]});paths.push(pts);}
-      }
-    }
-  }
-  return paths.sort((a,b)=>b.length-a.length).slice(0,90);
+const SAMPLE_SVG='<svg xmlns="http://www.w3.org/2000/svg" width="460" height="135" viewBox="0 0 460 135"><g fill="#222"><path d="M14 14 H34 V102 H85 V122 H14 Z"/><path d="M102 14 H174 V34 H124 V57 H168 V77 H124 V102 H174 V122 H102 Z"/><path fill-rule="evenodd" d="M195 14 H248 C294 14 318 35 318 68 C318 101 294 122 248 122 H195 Z M218 35 V101 H247 C279 101 295 88 295 68 C295 48 279 35 247 35 Z"/><path d="M341 14 H362 V102 H410 V122 H341 Z"/><path d="M426 14 H446 V122 H426 Z"/></g></svg>';
+let renderer,scene,camera,controls,modelRoot,edgeRoot,guideRoot,wireRoot,guardRoot,sourceData=null,sourceSvgText='',sourceLabel='',fontBuffer=null,parsedFont=null,activeInput='svg',helperVisibility=new Map(),selectedHelper=null,buildTimer=null,currentBounds=null;
+let wireRoutes=[],wireDraft=[],wireHoles=[],wireMode='',wireHistory=[];
+let idPreviewRoot=null,wireGhostRoot=null,rearGhostPaths=[],rearGhostWidths={inner:9,outer:13},backplaneBounds=null,backplaneBoundary=[],backplaneTileRegions=[],backplaneHoleRegions=[],backplaneRegions=[],customBackplaneData=null,customBackplaneWorld=null,eyeletLocations=null,selectedMountIds=new Set(),eyeletDragState=null,eyeletDragEnd=0,eyeletMessage='',buildValidationErrors=[],manufacturingErrors=[];
+let dimensionInputUnit='mm';
+let buildWarnings=[],pendingWarnings=[],sourceNotes=[],actionNote='';
+let letterOffsets=new Map(),selectedLetterGroups=new Set(),letterDragState=null,letterDragEnd=0,fitOnBuild=true,lineChannels=null,channelTick=0,wireView=null,wireBackZ=0,wirePreview=null;
+function setStatus(m,error=false){$('status').textContent=m;$('status').classList.toggle('error',error);}
+function setManufacturingErrors(errors){manufacturingErrors=[...new Set((errors||[]).filter(Boolean))];const summary=$('validationSummary');if(summary){summary.textContent=manufacturingErrors.map((e,i)=>(i+1)+'. '+e).join('\n');summary.hidden=!manufacturingErrors.length;}refreshExportButtons();}
+function refreshExportButtons(){const hasModel=!!modelRoot&&modelRoot.children.length>0,blocked=manufacturingErrors.length>0;if($('downloadSTL'))$('downloadSTL').disabled=blocked||!hasModel;if($('downloadGLB'))$('downloadGLB').disabled=!hasModel;if($('downloadGuards'))$('downloadGuards').disabled=blocked||!guardRoot?.children.length;}
+function setBuildWarnings(list){buildWarnings=[...new Set((list||[]).filter(Boolean))];const el=$('buildWarnings');if(el){el.textContent=buildWarnings.map((w,i)=>(i+1)+'. '+w).join('\n');el.hidden=!buildWarnings.length;}}
+function withWarnings(message){return buildWarnings.length?message+' '+buildWarnings.length+' warning(s) are listed under the export buttons.':message;}
+function noteAction(message){actionNote=message;setStatus(message);}
+function takeActionNote(){const n=actionNote;actionNote='';return n;}
+function numOr(id,fallback){const v=parseFloat($(id).value);return Number.isFinite(v)?v:fallback;}
+const minOf=list=>{let m=Infinity;for(const v of list)if(v<m)m=v;return m;},maxOf=list=>{let m=-Infinity;for(const v of list)if(v>m)m=v;return m;};
+function dualMeasure(mm){return Number(mm).toFixed(1)+' mm / '+(Number(mm)/25.4).toFixed(2)+' in';}
+function dimensionMm(id,fallback){const input=$(id),value=Math.max(.01,Number(input.value)||fallback);if(dimensionInputUnit!=='in')return value;const exact=Number(input.dataset.mmExact);/* untouched since the switch to inches: use the exact mm so mm to in to mm does not drift */return exact>0&&Number(input.dataset.inShown)===Number(input.value)?exact:value*25.4;}
+function updateRequestedSize(){const w=dimensionMm('artWidth',400),h=dimensionMm('artHeight',200);$('targetSizeReadout').textContent='Artwork box: '+dualMeasure(w)+' × '+dualMeasure(h)+' (aspect ratio preserved).';}
+function setDimensionUnit(next){if(!['mm','in'].includes(next)||next===dimensionInputUnit)return;const old=dimensionInputUnit;for(const id of ['artWidth','artHeight']){const input=$(id),mm=dimensionMm(id,id==='artWidth'?400:200);input.value=next==='in'?(mm/25.4).toFixed(2):String(+mm.toFixed(2));input.step=next==='in'?'0.01':'1';if(next==='in'){input.dataset.mmExact=String(mm);input.dataset.inShown=String(Number(input.value));}else{delete input.dataset.mmExact;delete input.dataset.inShown;}}dimensionInputUnit=next;document.querySelectorAll('[data-dimension-unit]').forEach(button=>button.classList.toggle('active',button.dataset.dimensionUnit===next));$('artWidthUnit').textContent=next;$('artHeightUnit').textContent=next;updateRequestedSize();rescaleSourceToTarget();}
+function disposeGroup(group){while(group.children.length){const c=group.children[0];group.remove(c);c.traverse?.(o=>{if(o.geometry)o.geometry.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());});}}
+function initViewer(){const host=$('canvasWrap');scene=new THREE.Scene();scene.background=new THREE.Color('#0b0e15');camera=new THREE.PerspectiveCamera(42,1,.1,100000);camera.up.set(0,0,1);camera.position.set(400,-560,470);renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.outputColorSpace=THREE.SRGBColorSpace;host.insertBefore(renderer.domElement,host.firstChild);controls=new OrbitControls(camera,renderer.domElement);controls.addEventListener('start',()=>setViewActive(''));controls.enableDamping=true;controls.dampingFactor=.08;controls.screenSpacePanning=true;controls.target.set(0,0,0);scene.add(new THREE.HemisphereLight(0xf0f4ff,0x343744,2));const key=new THREE.DirectionalLight(0xffffff,2.7);key.position.set(250,-350,700);scene.add(key);const fill=new THREE.DirectionalLight(0x91b8ff,1.05);fill.position.set(-450,150,250);scene.add(fill);modelRoot=new THREE.Group();modelRoot.name='LEDSign printable model';scene.add(modelRoot);edgeRoot=new THREE.Group();scene.add(edgeRoot);guideRoot=new THREE.Group();scene.add(guideRoot);wireRoot=new THREE.Group();wireRoot.name='Wire tool overlay';scene.add(wireRoot);guardRoot=new THREE.Group();guardRoot.name='Removable rear channel guards';scene.add(guardRoot);idPreviewRoot=new THREE.Group();idPreviewRoot.name='Rear tile ID preview';scene.add(idPreviewRoot);wireGhostRoot=new THREE.Group();wireGhostRoot.name='Rear wiring artwork guide';scene.add(wireGhostRoot);const resize=()=>{const w=Math.max(1,host.clientWidth),h=Math.max(1,host.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();};new ResizeObserver(resize).observe(host);resize();renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera);});}
+function mat(color){return new THREE.MeshStandardMaterial({color:color||$('metalColor').value,metalness:.55,roughness:.42,side:THREE.DoubleSide});}
+function svgBounds(parsed){const pts=[];for(const p of parsed.paths||[])for(const s of p.subPaths||[])for(const v of s.getPoints(Math.max(16,+$('smoothness').value*8)))pts.push(v);if(!pts.length)throw Error('The SVG contains no paths. Try an outlined SVG or use Text mode.');let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const p of pts){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}if(maxX-minX<.001&&maxY-minY<.001)throw Error('The SVG has zero-sized geometry (a single point).');return {minX,maxX,minY,maxY,cx:(minX+maxX)/2,cy:(minY+maxY)/2,width:maxX-minX,height:maxY-minY};}
+function svgPathMeta(path,index){
+ const node=path.userData?.node;
+ const id=node?.getAttribute?.('data-letter-index')??node?.getAttribute?.('data-select-group')??node?.getAttribute?.('id')??('path-'+index);
+ const label=node?.getAttribute?.('data-letter-char')||node?.getAttribute?.('aria-label')||(/^path-/.test(String(id))?'Path '+(index+1):String(id));
+ return {groupId:String(id),groupLabel:String(label),isCenterline:node?.getAttribute?.('data-centerline')==='true'};
 }
-
-// Closed-loop smoothing. Keep the glyph contours recognizable while reducing
-// stair steps from canvas sampling. Chaikin corner cutting cannot invent branches.
-function smoothContourLoop(path){
-  let a=path.slice(0,-1);
-  if(a.length<4)return path;
-  for(let pass=0;pass<2;pass++){
-    const b=[];
-    for(let i=0;i<a.length;i++){
-      const p=a[i],q=a[(i+1)%a.length];
-      b.push({x:p.x*.75+q.x*.25,y:p.y*.75+q.y*.25});
-      b.push({x:p.x*.25+q.x*.75,y:p.y*.25+q.y*.75});
-    }
-    a=b;
-  }
-  const step=Math.max(1,Math.ceil(a.length/800));
-  a=a.filter((_,i)=>i%step===0);
-  a.push({...a[0]});
-  return a;
-}
-
-function pathsFromUploadedFont(){
-  const text=sourceText();
-  const canvas=document.createElement('canvas');
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
-  if(!ctx)throw Error('Canvas 2D unavailable in this browser.');
-  const family='LEDSignUploaded',px=100;
-  ctx.font=`${px}px "${family}"`;
-  const measure=ctx.measureText(text);
-  const scale=Math.min(1,300/Math.max(1,measure.width+24));
-  const w=Math.max(40,Math.min(320,Math.ceil(measure.width*scale+30)));
-  const h=Math.max(36,Math.ceil(145*scale+20));
-  canvas.width=w;canvas.height=h;
-  ctx.font=`${px*scale}px "${family}"`;
-  ctx.textBaseline='alphabetic';ctx.fillStyle='white';
-  ctx.fillText(text,12,118*scale+8);
-  const rgba=ctx.getImageData(0,0,w,h).data;
-  const mask=createGrid(w,h);
-  for(let k=0;k<mask.data.length;k++)mask.data[k]=rgba[4*k+3]>90?1:0;
-  const ink=count(mask);
-  if(ink<10)throw Error('Uploaded font did not render pixels.');
-  // Never mistake disconnected skeleton fragments for valid signature lettering.
-  // The raster perimeter traces the actual uploaded glyph silhouette and preserves
-  // connected script lettering. This is an OUTLINE routing mode, not a centerline.
-  const contours=contourFallback(mask);
-  if (!contours.length) throw Error('No readable glyph contours found in the uploaded font.');
-  const refined=contours.map(p=>smoothContourLoop(p)).filter(p=>p.length>=5);
-  traceMessage='Glyph contour mode: paths follow the real letter edges, NOT single-stroke neon centerlines. Inspect LED routing before printing.';
-  return refined;
-}
-function traceSkeleton(g){
-  const {w,h}=g,mark=g.data;
-  const offsets=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
-  function around(i){const x=i%w,y=Math.floor(i/w),out=[];for(const [dx,dy] of offsets){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<w&&yy<h&&mark[yy*w+xx])out.push(yy*w+xx);}return out;}
-  const nbr=new Map();for(let i=0;i<mark.length;i++)if(mark[i])nbr.set(i,around(i));
-  const used=new Set(),paths=[],key=(a,b)=>a<b?a+':'+b:b+':'+a,pos=i=>({x:i%w,y:Math.floor(i/w)});
-  function walk(a,b){let previous=a,current=b,pts=[pos(a),pos(b)];used.add(key(a,b));let steps=0;while(steps++<mark.length){const n=(nbr.get(current)||[]).filter(k=>k!==previous&&!used.has(key(current,k)));if(n.length!==1)break;const next=n[0];used.add(key(current,next));pts.push(pos(next));previous=current;current=next;if(current===a)break;}if(pts.length>1){const sampled=pts.filter((_,i)=>i===0||i===pts.length-1||i%3===0);paths.push(sampled);}}
-  for(const [i,n] of nbr)if(n.length!==2)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
-  for(const [i,n] of nbr)for(const j of n)if(!used.has(key(i,j)))walk(i,j);
-  return paths.filter(p=>p.length>=2).slice(0,280);
-}
-async function uploadFont(file){
-  if(!file)return;
-  if(!/\.(ttf|otf)$/i.test(file.name))throw Error('Choose a .ttf or .otf font file.');
-  if(file.size>12*1024*1024)throw Error('Font exceeds the 12 MB maximum.');
-  uploadBusy=true;status('Reading font '+file.name+'…');
-  try{
-    const buffer=await file.arrayBuffer();
-    const face=new FontFace('LEDSignUploaded',buffer);
-    await face.load();
-    if(uploadedFont)document.fonts.delete(uploadedFont);
-    document.fonts.add(face);uploadedFont=face;
-    $('font').value='custom';
-    manualMode=true; drawing=false; draftLed=[];
-    uploadBusy=false;customFont=true;fontPreviewOnly=true;lines=[];downloadBlob=null;$('download').disabled=true;
-    // Render the actual uploaded font first, before computational tracing.
-    view();status('Font loaded: '+file.name+'. Select Draw LED path, then click along the CENTER of each intended neon stroke. Do not follow both edges.');
-  }finally{uploadBusy=false;}
-}
-
-
-// Smooth, sampled polyline geometry in physical millimetres.
-function smooth(points){if(points.length<3)return points.map(p=>({...p}));const out=[];for(let i=0;i<points.length-1;i++){const p0=points[Math.max(0,i-1)],p1=points[i],p2=points[i+1],p3=points[Math.min(points.length-1,i+2)],n=Math.max(2,Math.ceil(Math.hypot(p2.x-p1.x,p2.y-p1.y)/2));for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;const xy=key=>.5*((2*p1[key])+(-p0[key]+p2[key])*t+(2*p0[key]-5*p1[key]+4*p2[key]-p3[key])*t2+(-p0[key]+3*p1[key]-3*p2[key]+p3[key])*t3);out.push({x:xy('x'),y:xy('y')});}}out.push({...points.at(-1)});return out;}
-function shapePaths(){return shapes.map(s=>{const p=[];const n=s.kind==='line'?2:Math.max(32,Math.ceil(Math.max(s.w,s.h)/3)),count=s.kind==='arc'?n: n;for(let i=0;i<count;i++){let x,y,t=i/(count-1);if(s.kind==='line'){x=(t-.5)*s.w;y=0;}else if(s.kind==='rectangle'){const d=t*4;const a=Math.floor(d)%4,u=d-a;const edges=[[-.5+u,-.5],[.5,-.5+u],[.5-u,.5],[-.5,.5-u]];[x,y]=edges[a];x*=s.w;y*=s.h;}else{const ang=(s.kind==='arc'?Math.PI*(1-t):2*Math.PI*t);x=Math.cos(ang)*s.w*.5;y=Math.sin(ang)*s.h*.5;}p.push({x:s.x+x,y:s.y+y});}if(s.kind==='circle'||s.kind==='ellipse'||s.kind==='rectangle')p.push({...p[0]});return p;});}
-function allPaths(){return [...lines,...shapePaths()].filter(p=>p.length>1);}
-function range(){if(manualMode&&uploadedFont&&$('font').value==='custom'){const c=document.createElement('canvas').getContext('2d');c.font='100px LEDSignUploaded';const tw=c.measureText(sourceText()).width||100;return {minX:0,minY:0,maxX:+$('width').value,maxY:Math.max(50,100*(+$('width').value)/tw),w:+$('width').value,h:Math.max(50,100*(+$('width').value)/tw)};}const pts=allPaths().flat();if(!pts.length)return {minX:0,minY:0,maxX:450,maxY:150,w:450,h:150};const minX=Math.min(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxX=Math.max(...pts.map(p=>p.x)),maxY=Math.max(...pts.map(p=>p.y));return {minX,minY,maxX,maxY,w:maxX-minX,h:maxY-minY};}
-function opts(){const p=PROFILES[$('led').value],clearance=+$('clearance').value,wall=+$('wall').value;return {inner:p.w+2*clearance,outer:p.w+2*clearance+2*wall,floor:+$('floor').value,height:+$('channelHeight').value,pad:+$('padding').value,backingHeight:+$('plate').value,p};}
-function labels(){for(const id of ['width','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id+'O').textContent=$(id).value+(id==='glow'?'%':' mm');const o=opts();$('profile').textContent=`Opening ${o.inner.toFixed(1)} mm · outside ${o.outer.toFixed(1)} mm · nominal LED ${o.p.w}×${o.p.h} mm · manufacturer minimum bend radius must be checked (example ${o.p.bend} mm).`;}
-function svg(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.append(e);return e;}
-function dpath(pts){return 'M'+pts.map(p=>`${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' L');}
-function wirePointToSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));return {x:a.x+t*dx,y:a.y+t*dy};}
-function nearestLedPoint(p){let best=null,dist=Infinity;for(const path of allPaths())for(let i=1;i<path.length;i++){const q=wirePointToSegment(p,path[i-1],path[i]),d=Math.hypot(q.x-p.x,q.y-p.y);if(d<dist){dist=d;best=q;}}return best;}
-function addWirePoint(p){if(wireMode==='start'){wireDraft=[nearestLedPoint(p)];wireMode='end';}else if(wireMode==='waypoint'){if(!wireDraft.length){status('Mark a start point first.',true);return;}wireDraft.push(p);wireMode='end';}else if(wireMode==='end'){if(!wireDraft.length){wireMode='start';return;}const endpoint=nearestLedPoint(p);if(Math.hypot(endpoint.x-wireDraft[0].x,endpoint.y-wireDraft[0].y)<1)throw Error('Wire route is too short');wireRoutes.push([...wireDraft,endpoint]);wireDraft=[];wireMode='';selectedWireRoute=wireRoutes.length-1;}updateWireUI();invalidate();}
-function updateWireUI(){const el=$('routeStatus');if(!el)return;el.textContent=wireMode==='start'?'Click near the END of the first LED stroke.':wireMode==='end'?'Click near the START of the next LED stroke, or add a waypoint.':wireMode==='waypoint'?'Click anywhere to place a rear-wire waypoint.':`${wireRoutes.length} completed rear cable route(s). Start a new route to add another.`;for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).setAttribute('aria-pressed',String(wireMode===mode));}
-function drawWireRoutes(root){const rr=[...wireRoutes,...(wireDraft.length?[wireDraft]:[])];for(const [i,route] of rr.entries()){if(route.length>1)svg('path',{d:dpath(route),fill:'none',stroke:'#6af5d2','stroke-width':3/scene.scale,'stroke-dasharray':`${11/scene.scale} ${7/scene.scale}`,'data-wire':i},root);for(const [k,p] of route.entries()){svg('circle',{cx:p.x,cy:p.y,r:7/scene.scale,fill:k===0?'#ffd27d':'#6af5d2',stroke:'#132b2a','stroke-width':2/scene.scale},root);}}}
-function rearRacewayProfile(width,wall,depth){const outer=width+wall*2;return [[-outer/2,0],[-width/2,0],[-width/2,depth-wall],[width/2,depth-wall],[width/2,0],[outer/2,0],[outer/2,depth],[-outer/2,depth]];}
-function view(){labels();const g=$('content');g.replaceChildren();const r=range(),o=opts(),margin=35,fit=Math.min(820/Math.max(80,r.w+o.outer+margin),475/Math.max(80,r.h+o.outer+margin)),scale=fit*zoom,tx=450-(r.minX+r.w/2)*scale,ty=280-(r.minY+r.h/2)*scale;scene={tx,ty,scale};const root=svg('g',{transform:`translate(${tx} ${ty}) scale(${scale})`},g);const color='#eddaff';if(manualMode&&uploadedFont&&$('font').value==='custom'){const text=sourceText(),maxwidth=Math.max(1,+$('width').value),c=document.createElement('canvas').getContext('2d');c.font='100px LEDSignUploaded';const em=Math.max(1,c.measureText(text).width),fs=100*maxwidth/em;svg('text',{x:r.minX+15,y:r.minY+fs,'font-family':'LEDSignUploaded','font-size':fs,fill:'#c6b7de',opacity:0.28},root).textContent=text;}for(const [i,path] of allPaths().entries()){const d=dpath(path);svg('path',{d,stroke:'#82769b','stroke-width':o.outer+2,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:'#181726','stroke-width':o.inner,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.8),fill:'none',opacity:(+$('glow').value/100)*.7,filter:'url(#glowfilter)','stroke-linecap':'round','stroke-linejoin':'round'},root);svg('path',{d,stroke:color,'stroke-width':Math.max(1,o.p.w*.65),fill:'none','stroke-linecap':'round','stroke-linejoin':'round'},root);}
-if(draftLed.length){svg('path',{d:dpath(draftLed),fill:'none',stroke:'#63ffdf','stroke-width':3/scale,'stroke-dasharray':`${9/scale} ${5/scale}`},root);for(const p of draftLed)svg('circle',{cx:p.x,cy:p.y,r:5/scale,fill:'#67ffd5'},root);} drawWireRoutes(root);shapes.forEach((s,i)=>{const x=s.x+s.w/2,y=s.y+s.h/2;if(selected===i){svg('rect',{x:s.x-s.w/2,y:s.y-s.h/2,width:s.w,height:s.h,stroke:'#84ffe1','stroke-width':1.3/scale*6,fill:'none','stroke-dasharray':`${5/scale*6} ${3/scale*6}`},root);svg('circle',{cx:x,cy:y,r:7/scale,fill:'#84ffe1','data-resize':i},root);}const p=svg('path',{d:dpath(shapePaths()[i]),fill:'none',stroke:'transparent','stroke-width':Math.max(18/scale,o.outer),'data-shape':i,'stroke-linecap':'round'},root);p.style.cursor='move';});const totalW=r.w+o.outer,totalH=r.h+o.outer; $('dimensions').textContent=`${totalW.toFixed(1)} × ${totalH.toFixed(1)} mm | ${(totalW/25.4).toFixed(2)} × ${(totalH/25.4).toFixed(2)} in`; $('pathcount').textContent=allPaths().length;const bx=+$('bedW').value,by=+$('bedH').value;$('bedstate').textContent=r.w+o.outer<=bx&&r.h+o.outer<=by?'Fits':'Oversized';}
-function buildLines(){try{if($('font').value==='custom'&&manualMode){fontPreviewOnly=false;invalidate();status('Manual LED routing active. Use Draw LED path and click along the font strokes.');return;}if($('font').value==='custom'){if(!uploadedFont){fontPreviewOnly=false;throw Error('Upload a TTF or OTF font first.');}fontPreviewOnly=true;view();const traced=pathsFromUploadedFont();lines=normalizePaths(traced);fontPreviewOnly=false;}else{fontPreviewOnly=false;lines=normalizePaths(draftPaths());}invalidate();status('Lettering paths updated. Ready for STL generation. '+(traceMessage||''), Boolean(traceMessage&&traceMessage.startsWith('Outline')));}catch(e){if($('font').value==='custom'&&uploadedFont){fontPreviewOnly=true;traceMessage=e.message;view();status('Font preview works, but printable tracing failed: '+e.message,true);}else status(e.message,true);}}
-function invalidate(){downloadBlob=null;$('download').disabled=true;view();}
-function orient(a,b){return a[0]*b[1]-a[1]*b[0];}
-function capTriangles(poly){const ids=poly.map((_,i)=>i),tri=[];let area=0;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];area+=orient(a,b);}const sign=Math.sign(area)||1;for(let loop=0;ids.length>3&&loop<100;loop++){let found=false;for(let i=0;i<ids.length;i++){const A=ids[(i+ids.length-1)%ids.length],B=ids[i],C=ids[(i+1)%ids.length],a=poly[A],b=poly[B],c=poly[C];if(orient([b[0]-a[0],b[1]-a[1]],[c[0]-b[0],c[1]-b[1]])*sign<1e-8)continue;let inside=false;for(const j of ids){if([A,B,C].includes(j))continue;const p=poly[j];const f=(u,v,w)=>orient([v[0]-u[0],v[1]-u[1]],[w[0]-u[0],w[1]-u[1]])*sign; if(f(a,b,p)>0&&f(b,c,p)>0&&f(c,a,p)>0){inside=true;break;}}if(inside)continue;tri.push([A,B,C]);ids.splice(i,1);found=true;break;}if(!found)throw Error('Could not triangulate end cap.');}if(ids.length===3)tri.push([...ids]);return tri;}
-function swept(points,profile){const pts=smooth(points).filter((p,i,a)=>i===0||Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>.15);if(pts.length<2)throw Error('Path too short');const sections=[];for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)],len=Math.hypot(b.x-a.x,b.y-a.y)||1,nx=-(b.y-a.y)/len,ny=(b.x-a.x)/len;sections.push(profile.map(([u,z])=>[pts[i].x+nx*u,pts[i].y+ny*u,z]));}const triangles=[];const add=(a,b,c)=>{if(Math.hypot(...a.map((v,i)=>v-b[i]))<1e-7)return;triangles.push([a,b,c]);};const n=profile.length;for(let i=0;i<sections.length-1;i++)for(let j=0;j<n;j++){const k=(j+1)%n;add(sections[i][j],sections[i+1][j],sections[i+1][k]);add(sections[i][j],sections[i+1][k],sections[i][k]);}const caps=capTriangles(profile);for(const [a,b,c]of caps){add(sections[0][c],sections[0][b],sections[0][a]);const e=sections.at(-1);add(e[a],e[b],e[c]);}return triangles;}
-function channelProfile(o){return [[-o.outer/2,0],[o.outer/2,0],[o.outer/2,o.height],[o.inner/2,o.height],[o.inner/2,o.floor],[-o.inner/2,o.floor],[-o.inner/2,o.height],[-o.outer/2,o.height]];}
-function solidProfile(width,height){return [[-width/2,0],[width/2,0],[width/2,height],[-width/2,height]];}
-function stlBinary(tris){const bytes=new ArrayBuffer(84+tris.length*50),v=new DataView(bytes);v.setUint32(80,tris.length,true);let offset=84;for(const t of tris){const [a,b,c]=t,A=b.map((x,i)=>x-a[i]),B=c.map((x,i)=>x-a[i]),N=[A[1]*B[2]-A[2]*B[1],A[2]*B[0]-A[0]*B[2],A[0]*B[1]-A[1]*B[0]],l=Math.hypot(...N)||1;for(const x of N)v.setFloat32(offset,(x/l)||0,true),offset+=4;for(const vertex of t)for(const x of vertex)v.setFloat32(offset,x,true),offset+=4;v.setUint16(offset,0,true);offset+=2;}return new Uint8Array(bytes);}
-function crc32(bytes){let c=~0;for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xedb88320:c>>>1;}return(~c)>>>0;}
-function zip(files){
- const enc=new TextEncoder(), local=[],central=[];let offset=0;
- const u16=n=>[n&255,(n>>>8)&255],u32=n=>[n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255];
- for(const [name,content] of files){
-  const fn=enc.encode(name), b=typeof content==='string'?enc.encode(content):content, crc=crc32(b);
-  const header=new Uint8Array([80,75,3,4,...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(b.length),...u32(b.length),...u16(fn.length),...u16(0),...fn]);
-  local.push(header,b);
-  const directory=new Uint8Array([80,75,1,2,...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(b.length),...u32(b.length),...u16(fn.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(offset),...fn]);
-  central.push(directory);offset+=header.length+b.length;
+function simplifyPolyline(points,tolerance){
+ if(points.length<3)return points;const keep=new Uint8Array(points.length);keep[0]=1;keep[points.length-1]=1;const stack=[[0,points.length-1]],tol2=tolerance*tolerance;
+ while(stack.length){const[first,last]=stack.pop(),a=points[first],b=points[last],dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy;let best=-1,bestD=tol2;
+  for(let i=first+1;i<last;i++){const p=points[i],t=len2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len2)):0,qx=a.x+t*dx,qy=a.y+t*dy,d=(p.x-qx)**2+(p.y-qy)**2;if(d>bestD){bestD=d;best=i;}}
+  if(best>=0){keep[best]=1;stack.push([first,best],[best,last]);}
  }
- const size=central.reduce((n,b)=>n+b.length,0), end=new Uint8Array([80,75,5,6,...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(size),...u32(offset),...u16(0)]);
- return new Blob([...local,...central,end],{type:'application/zip'});
+ return points.filter((p,i)=>keep[i]);
 }
-function nextFrame(){return new Promise(resolve=>setTimeout(resolve,0));}
-function clipSegment(a,b,x0,y0,x1,y1){
- let t0=0,t1=1,dx=b.x-a.x,dy=b.y-a.y;
- for(const [p,q] of [[-dx,a.x-x0],[dx,x1-a.x],[-dy,a.y-y0],[dy,y1-a.y]]){
-  if(Math.abs(p)<1e-10){if(q<0)return null;continue;}
-  const t=q/p;if(p<0){if(t>t1)return null;t0=Math.max(t0,t);}else{if(t<t0)return null;t1=Math.min(t1,t);}
+function chaikinOpen(points){
+ if(points.length<4)return points;const out=[points[0].clone()];
+ for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1];out.push(new THREE.Vector2(a.x*.75+b.x*.25,a.y*.75+b.y*.25),new THREE.Vector2(a.x*.25+b.x*.75,a.y*.25+b.y*.75));}
+ out.push(points.at(-1).clone());return out;
+}
+function chaikinClosed(points){if(points.length<4)return points;const out=[];for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];out.push(new THREE.Vector2(a.x*.75+b.x*.25,a.y*.75+b.y*.25),new THREE.Vector2(a.x*.25+b.x*.75,a.y*.25+b.y*.75));}return out;}
+function skeletonNeighbors(mask,w,h,i){const x=i%w,y=(i/w)|0,out=[],north=y>0&&mask[i-w]===1,east=x<w-1&&mask[i+1]===1,south=y<h-1&&mask[i+w]===1,west=x>0&&mask[i-1]===1;if(north)out.push(i-w);if(east)out.push(i+1);if(south)out.push(i+w);if(west)out.push(i-1);if(y>0&&x<w-1&&mask[i-w+1]===1&&!north&&!east)out.push(i-w+1);if(y<h-1&&x<w-1&&mask[i+w+1]===1&&!south&&!east)out.push(i+w+1);if(y<h-1&&x>0&&mask[i+w-1]===1&&!south&&!west)out.push(i+w-1);if(y>0&&x>0&&mask[i-w-1]===1&&!north&&!west)out.push(i-w-1);return out;}
+function cleanSkeleton(polys,rad){
+ // Turn raw skeleton pixel chains into smooth LED routes: prune spurs, join branches, smooth with junction ends pinned.
+ const gap=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]),len=p=>{let s=0;for(let i=1;i<p.length;i++)s+=gap(p[i],p[i-1]);return s;};
+ const chains=polys.filter(c=>c.length>=2),ends=chains.flatMap(c=>[c[0],c.at(-1)]),root=ends.map((_,i)=>i),find=i=>root[i]===i?i:(root[i]=find(root[i]));
+ for(let i=0;i<ends.length;i++)for(let j=i+1;j<ends.length;j++)if(Math.abs(ends[i][0]-ends[j][0])<=2&&Math.abs(ends[i][1]-ends[j][1])<=2)root[find(i)]=find(j);
+ let segs=chains.map((p,i)=>({p,a:find(2*i),b:find(2*i+1),closed:false}));
+ const degree=()=>{const d=new Map();for(const s of segs)if(!s.closed)for(const n of [s.a,s.b])d.set(n,(d.get(n)||0)+1);return d;};
+ const from=(s,n)=>s.a===n?s.p:s.p.slice().reverse(),far=(s,n)=>s.a===n?s.b:s.a;
+ const join=(s,t,n)=>{const x=from(s,n).slice().reverse(),y=from(t,n);return {p:x.concat(gap(x.at(-1),y[0])<.5?y.slice(1):y),a:far(s,n),b:far(t,n),closed:false};};
+ // 1. Prune spurs: branches from a junction to a free end that barely reach past the junction's inscribed circle
+ // (thinning forks into corners stick out ~0.4 stroke half-widths; real short arms such as a t crossbar stick out more than 1).
+ {const d=degree(),cut=new Map();
+  for(const s of segs){if(s.closed||s.a===s.b)continue;const fa=d.get(s.a)===1,fb=d.get(s.b)===1;if(fa===fb)continue;const j=fa?s.b:s.a,q=fa?s.p.at(-1):s.p[0],rq=rad(q[0],q[1]);let L=0;for(const v of s.p)L=Math.max(L,gap(v,q)+rad(v[0],v[1]));L-=rq;if(d.get(j)>=3&&L<.6*rq+2){if(!cut.has(j))cut.set(j,[]);cut.get(j).push({s,L});}}
+  const drop=new Set();for(const [j,list] of cut)list.sort((u,v)=>u.L-v.L).slice(0,d.get(j)-1).forEach(x=>drop.add(x.s));
+  segs=segs.filter(s=>!drop.has(s));
  }
- if(t1-t0<1e-6)return null;
- return [{x:a.x+dx*t0,y:a.y+dy*t0},{x:a.x+dx*t1,y:a.y+dy*t1}];
+ // 2. Join chains through nodes that now have exactly two ends; a chain that meets itself becomes a closed loop.
+ for(let again=true;again;){again=false;for(const [n,k] of degree()){if(k!==2)continue;const at=segs.filter(s=>!s.closed&&(s.a===n||s.b===n));if(at.length===1)at[0].closed=true;else{const m=join(at[0],at[1],n);segs=segs.filter(s=>s!==at[0]&&s!==at[1]);segs.push(m);}again=true;break;}}
+ // 3. At junctions, carry the straightest pair of branches through the node so main strokes stay smooth.
+ const junction=new Set([...degree()].filter(e=>e[1]>=3).map(e=>e[0]));
+ const heading=(s,n)=>{const q=from(s,n),r=Math.max(4,2*rad(q[0][0],q[0][1]));let acc=0,k=1;while(k<q.length-1&&acc<r){acc+=gap(q[k],q[k-1]);k++;}const l=gap(q[k],q[0])||1;return [(q[k][0]-q[0][0])/l,(q[k][1]-q[0][1])/l];};
+ for(const n of junction)for(;;){const at=segs.filter(s=>!s.closed&&s.a!==s.b&&(s.a===n||s.b===n));let best=null;for(let i=0;i<at.length;i++)for(let j=i+1;j<at.length;j++){const u=heading(at[i],n),v=heading(at[j],n),c=u[0]*v[0]+u[1]*v[1];if(c<-.77&&(!best||c<best.c))best={s:at[i],t:at[j],c};}if(!best)break;const m=join(best.s,best.t,n);segs=segs.filter(s=>s!==best.s&&s!==best.t);segs.push(m);}
+ // 4. Straighten hooked free ends, then smooth (binomial passes, roughly a Gaussian of 0.6 stroke half-widths).
+ const d=degree(),out=[];
+ for(const s of segs){let p=s.p.map(v=>[v[0],v[1]]);if(s.closed&&p.length>2&&gap(p[0],p.at(-1))<.5)p.pop();if(p.length<2)continue;
+  const rs=p.map(v=>rad(v[0],v[1])).sort((u,v)=>u-v),rm=Math.max(1,rs[rs.length>>1]),free=n=>!s.closed&&s.a!==s.b&&!junction.has(n)&&d.get(n)===1;
+  const tip=q=>{let acc=0,k=0;while(k<q.length-2&&acc<rm){acc+=gap(q[k+1],q[k]);k++;}let reach=0,m=k;while(m<q.length-1&&reach<2*rm){reach+=gap(q[m+1],q[m]);m++;}if(reach<rm)return q;const l=gap(q[k],q[m])||1;return [[q[k][0]+(q[k][0]-q[m][0])/l*acc,q[k][1]+(q[k][1]-q[m][1])/l*acc]].concat(q.slice(k));};
+  if(!s.closed&&len(p)>4*rm){if(free(s.a))p=tip(p);if(free(s.b))p=tip(p.reverse()).reverse();}
+  const n=p.length,x=Float64Array.from(p,v=>v[0]),y=Float64Array.from(p,v=>v[1]),x2=new Float64Array(n),y2=new Float64Array(n),passes=Math.min(400,Math.round(2*(.6*rm)**2));
+  for(let it=0;it<passes&&n>2;it++){for(let i=0;i<n;i++){if(!s.closed&&(i===0||i===n-1)){x2[i]=x[i];y2[i]=y[i];continue;}const a=(i+n-1)%n,b=(i+1)%n;x2[i]=(x[a]+2*x[i]+x[b])/4;y2[i]=(y[a]+2*y[i]+y[b])/4;}x.set(x2);y.set(y2);}
+  out.push({pts:Array.from(x,(v,i)=>[v,y[i]]),closed:s.closed});
+ }
+ return out;
 }
-function clipPath(path,rect){const pieces=[];let current=[];
- function push(){if(current.length>1)pieces.push(current);current=[];}
- for(let i=1;i<path.length;i++){
-  const segment=clipSegment(path[i-1],path[i],...rect);
-  if(!segment){push();continue;}
-  if(current.length&&Math.hypot(current.at(-1).x-segment[0].x,current.at(-1).y-segment[0].y)>.02)push();
-  if(!current.length)current.push(segment[0]);current.push(segment[1]);
- }push();return pieces;
-}
-function splitForBed(paths,bx,by,extent){
- const pts=paths.flat();if(!pts.length)return [];
- const left=Math.min(...pts.map(v=>v.x)),right=Math.max(...pts.map(v=>v.x)),top=Math.min(...pts.map(v=>v.y)),bottom=Math.max(...pts.map(v=>v.y));
- const w=bx-2*extent,h=by-2*extent;if(w<=5||h<=5)throw Error('Selected bed is too small for the channel/support width.');
- const cols=Math.max(1,Math.ceil((right-left)/w)),rows=Math.max(1,Math.ceil((bottom-top)/h));if(cols*rows>120)throw Error('Too many print tiles; increase build plate or reduce sign dimensions.');
- const pieces=[];for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
-  const x0=left+x*w,y0=top+y*h, rect=[x0,y0,x0+w,y0+h];
-  for(const path of paths)for(const segment of clipPath(smooth(path),rect)){
-   if(segment.length>1)pieces.push({path:segment.map(p=>({x:p.x-x0+extent,y:p.y-y0+extent})),tileX:x+1,tileY:y+1});
+function normalizeSvg(parsed){
+ const b=svgBounds(parsed),target=dimensionMm('artWidth',400),targetH=dimensionMm('artHeight',200),s=Math.min(b.width>.001?target/b.width:Infinity,b.height>.001?targetH/b.height:Infinity),paths=[];
+ for(let i=0;i<parsed.paths.length;i++){
+  const path=parsed.paths[i],meta=svgPathMeta(path,i);
+  for(let j=0;j<path.subPaths.length;j++){
+   const sub=path.subPaths[j],sample=sub.getPoints(Math.max(16,+$('smoothness').value*8));if(sample.length<2)continue;
+   const points=sample.map(p=>new THREE.Vector2((p.x-b.cx)*s,-(p.y-b.cy)*s));
+   const closed=points.length>2&&points[0].distanceTo(points[points.length-1])<.01;
+   let clean=closed?points.slice(0,-1):thin(points,.01);
+   if(meta.isCenterline){clean=simplifyPolyline(clean,Math.max(.03,Math.min(.3,.6/(+$('smoothness').value||6))));for(let pass=0;pass<2;pass++)clean=closed?chaikinClosed(clean):chaikinOpen(clean);}
+   if(clean.length>=2)paths.push({points:clean,closed,filled:path.userData?.style?.fill!=='none'&&path.userData?.style?.fill!==undefined,pathIndex:i,subIndex:j,groupId:meta.groupId,groupLabel:meta.groupLabel,isCenterline:meta.isCenterline});
   }
- }return {pieces,cols,rows};
+ }
+ if(!paths.length)throw Error('Could not extract SVG paths.');
+ const all=paths.flatMap(p=>p.points),xs=all.map(p=>p.x),ys=all.map(p=>p.y);
+ return {parsed,paths,bounds:{minX:minOf(xs),maxX:maxOf(xs),minY:minOf(ys),maxY:maxOf(ys),width:maxOf(xs)-minOf(xs),height:maxOf(ys)-minOf(ys)},rawBounds:b,scale:s};
 }
-async function generate(){if(fontPreviewOnly){status('Cannot generate STL: '+(traceMessage||'font centerline extraction did not complete')+'. Please review the font or edit the vector paths.',true);return;}
+function rescaleSourceToTarget(){updateRequestedSize();if(!sourceData)return;try{const previousScale=sourceData.scale||1,next=normalizeSvg(sourceData.parsed),ratio=next.scale/previousScale;if(!Number.isFinite(ratio)||ratio<=0)throw new Error('Invalid target dimensions.');for(const [id,offset] of letterOffsets)letterOffsets.set(id,{x:offset.x*ratio,y:offset.y*ratio});sourceData=next;scheduleRebuild();}catch(error){setStatus('Could not resize artwork: '+error.message,true);}}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);}
+function pathLength(points,closed=false){let n=0;for(let i=1;i<points.length;i++)n+=points[i].distanceTo(points[i-1]);if(closed&&points.length>2)n+=points[0].distanceTo(points.at(-1));return n;}
+function area(points){let a=0;for(let i=0;i<points.length;i++){const p=points[i],q=points[(i+1)%points.length];a+=p.x*q.y-q.x*p.y;}return a/2;}
+/* Drop points closer than tol to the last point kept. Comparing with the previous original point instead deleted whole runs of dense points (any path with spacing below tol collapsed to one point). */
+function thin(points,tol){const out=[];for(const p of points)if(!out.length||p.distanceTo(out[out.length-1])>tol)out.push(p.clone());return out;}
+function triProfile(profile){return THREE.ShapeUtils.triangulateShape(profile.map(p=>new THREE.Vector2(p[0],p[1])),[]);}
+function orientOutward(g){
+  // Closed shells must wind counter-clockwise seen from outside (positive signed volume) or slicers see them inside out.
+  // Swept profiles and the Y-mirrored floor extrusions came out reversed, so flip every triangle when the volume is negative.
+  const p=g.attributes.position,idx=g.index,n=idx?idx.count:p.count;let v=0;
+  for(let t=0;t<n;t+=3){const ia=idx?idx.getX(t):t,ib=idx?idx.getX(t+1):t+1,ic=idx?idx.getX(t+2):t+2,ax=p.getX(ia),ay=p.getY(ia),az=p.getZ(ia),bx=p.getX(ib),by=p.getY(ib),bz=p.getZ(ib),cx=p.getX(ic),cy=p.getY(ic),cz=p.getZ(ic);v+=ax*(by*cz-bz*cy)-ay*(bx*cz-bz*cx)+az*(bx*cy-by*cx);}
+  if(v>=0)return g;
+  if(idx){for(let t=0;t<n;t+=3){const b=idx.getX(t+1),c=idx.getX(t+2);idx.setX(t+1,c);idx.setX(t+2,b);}idx.needsUpdate=true;}
+  else for(const name of Object.keys(g.attributes)){const attr=g.attributes[name],size=attr.itemSize;for(let t=0;t<n;t+=3)for(let k=0;k<size;k++){const i1=(t+1)*size+k,i2=(t+2)*size+k,x=attr.array[i1];attr.array[i1]=attr.array[i2];attr.array[i2]=x;}attr.needsUpdate=true;}
+  return g;
+}
+function sweepGeometry(points,profile,closed=false,caps=true){let pts=thin(points,.025);if(closed&&pts.length>2&&pts[0].distanceTo(pts.at(-1))<.025)pts.pop();if(pts.length<2)throw Error('A path was too short to sweep into a channel.');const sec=profile.map(p=>[p[0],p[1]]),vCount=sec.length,n=pts.length,pos=[],idx=[],mode=$('cornerMode').value;for(let i=0;i<n;i++){const prev=pts[closed?(i+n-1)%n:Math.max(0,i-1)],next=pts[closed?(i+1)%n:Math.min(n-1,i+1)];let n1=new THREE.Vector2(-(pts[i].y-prev.y),pts[i].x-prev.x),n2=new THREE.Vector2(-(next.y-pts[i].y),next.x-pts[i].x);if(n1.length()<1e-7)n1.set(0,1);else n1.normalize();if(n2.length()<1e-7)n2.copy(n1);else n2.normalize();let m=n1.clone().add(n2);if(m.length()<1e-7)m.copy(n2);else m.normalize();const factor=Math.min(mode==='miter'?5:2.2,1/Math.max(.12,Math.abs(m.dot(n2))));for(const [off,z]of sec)pos.push(pts[i].x+m.x*off*factor,pts[i].y+m.y*off*factor,z);}for(let i=0;i<(closed?n:n-1);i++){const j=(i+1)%n;for(let k=0;k<vCount;k++){const k2=(k+1)%vCount,a=i*vCount+k,b=j*vCount+k,c=j*vCount+k2,d=i*vCount+k2;idx.push(a,b,c,a,c,d);}}if(!closed&&caps){const f=triProfile(sec);for(const t of f)idx.push(t[2],t[1],t[0]);const base=(n-1)*vCount;for(const t of f)idx.push(base+t[0],base+t[1],base+t[2]);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);orientOutward(g);g.computeVertexNormals();g.computeBoundingBox();return g;}
+function addMesh(geom,o={}){const m=new THREE.Mesh(geom,mat(o.color));m.name=o.name||'Generated part';m.userData={...(o.userData||{})};if(m.userData.groupId!==undefined){m.userData.groupId=String(m.userData.groupId);const off=letterOffsets.get(m.userData.groupId)||{x:0,y:0};m.position.set(off.x,off.y,0);}modelRoot.add(m);return m;}
+function shapeGeo(shape,depth,z,b,scale){const g=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:Math.max(4,+$('smoothness').value*2)});g.scale(scale,-scale,1);g.translate(-b.cx*scale,b.cy*scale,z);return orientOutward(g);}
+function roundedRect(w,h,r){const s=new THREE.Shape(),x=-w/2,y=-h/2,R=Math.max(0,Math.min(r,w/2,h/2));s.moveTo(x+R,y);s.lineTo(x+w-R,y);s.quadraticCurveTo(x+w,y,x+w,y+R);s.lineTo(x+w,y+h-R);s.quadraticCurveTo(x+w,y+h,x+w-R,y+h);s.lineTo(x+R,y+h);s.quadraticCurveTo(x,y+h,x,y+h-R);s.lineTo(x,y+R);s.quadraticCurveTo(x,y,x+R,y);s.closePath();return s;}
+function hull(points){const a=points.map(p=>[p.x,p.y]).sort((p,q)=>p[0]-q[0]||p[1]-q[1]),u=a.filter((p,i)=>!i||p[0]!==a[i-1][0]||p[1]!==a[i-1][1]);if(u.length<3)return u;const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],up=[];for(const p of u){while(lo.length>=2&&cr(lo.at(-2),lo.at(-1),p)<=0)lo.pop();lo.push(p);}for(let i=u.length-1;i>=0;i--){const p=u[i];while(up.length>=2&&cr(up.at(-2),up.at(-1),p)<=0)up.pop();up.push(p);}lo.pop();up.pop();return lo.concat(up);}
+function roundOffsetConvex(h,d){if(h.length<3||!(d>0))return h.slice();let a=0;for(let i=0;i<h.length;i++){const p=h[i],q=h[(i+1)%h.length];a+=p[0]*q[1]-q[0]*p[1];}const pts=a<0?h.slice().reverse():h,n=pts.length,out=[],normal=(p,q)=>Math.atan2(-(q[0]-p[0]),q[1]-p[1]);for(let i=0;i<n;i++){const prev=pts[(i+n-1)%n],cur=pts[i],next=pts[(i+1)%n],a0=normal(prev,cur);let a1=normal(cur,next);while(a1<a0)a1+=Math.PI*2;const steps=Math.max(1,Math.ceil((a1-a0)/(Math.PI/36)));for(let k=0;k<=steps;k++){const t=a0+(a1-a0)*k/steps;out.push([cur[0]+Math.cos(t)*d,cur[1]+Math.sin(t)*d]);}}return out;}
+function edgePoints(a,b,normal,enabled,gender,style,depth,width){const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,at=t=>[a[0]+ux*t,a[1]+uy*t];if(!enabled||style==='none'||len<width+10)return[a,b];const root=Math.min(width,len*.32),t0=(len-root)/2,t1=t0+root,flare=style==='dovetail'?Math.min(4,root*.16):Math.min(3,root*.14),sgn=gender==='male'?1:-1,nx=normal[0]*sgn,ny=normal[1]*sgn,off=(t,d)=>{const p=at(t);return[p[0]+nx*d,p[1]+ny*d];};if(style==='puzzle')return[a,at(t0),off(t0-flare,depth*.45),off(t0-flare,depth),off(t1+flare,depth),off(t1+flare,depth*.45),at(t1),b];return[a,at(t0),off(t0-flare,depth),off(t1+flare,depth),at(t1),b];}
+function clipPolygon(points,rect){let out=points.map(p=>p.slice());const [x0,y0,x1,y1]=rect,edges=[{inside:p=>p[0]>=x0-1e-7,inter:(a,b)=>{const t=(x0-a[0])/(b[0]-a[0]);return[x0,a[1]+t*(b[1]-a[1])];}},{inside:p=>p[0]<=x1+1e-7,inter:(a,b)=>{const t=(x1-a[0])/(b[0]-a[0]);return[x1,a[1]+t*(b[1]-a[1])];}},{inside:p=>p[1]>=y0-1e-7,inter:(a,b)=>{const t=(y0-a[1])/(b[1]-a[1]);return[a[0]+t*(b[0]-a[0]),y0];}},{inside:p=>p[1]<=y1+1e-7,inter:(a,b)=>{const t=(y1-a[1])/(b[1]-a[1]);return[a[0]+t*(b[0]-a[0]),y1];}}];for(const e of edges){const inp=out;out=[];if(!inp.length)break;let prev=inp.at(-1);for(const cur of inp){const pi=e.inside(prev),ci=e.inside(cur);if(ci){if(!pi)out.push(e.inter(prev,cur));out.push(cur);}else if(pi)out.push(e.inter(prev,cur));prev=cur;}}return out;}
+function backplaneSilhouette(style,cx,cy,w,h){
+ if(style==='ellipse')return Array.from({length:96},(_,i)=>{const a=i*Math.PI*2/96;return[cx+Math.cos(a)*w/2,cy+Math.sin(a)*h/2];});
+ if(style==='hexagon')return Array.from({length:6},(_,i)=>{const a=i*Math.PI/3;return[cx+Math.cos(a)*w/2,cy+Math.sin(a)*h/2];});
+ if(style==='shield')return [[cx-w*.34,cy+h*.5],[cx+w*.34,cy+h*.5],[cx+w*.5,cy+h*.16],[cx+w*.32,cy-h*.28],[cx,cy-h*.5],[cx-w*.32,cy-h*.28],[cx-w*.5,cy+h*.16]];
+ return [];
+}
+function fitSilhouette(H,c,need){if(H.length<3||!need.length)return H;let a=0;for(let i=0;i<H.length;i++){const p=H[i],q=H[(i+1)%H.length];a+=p[0]*q[1]-q[0]*p[1];}const sg=a<0?-1:1;let k=0;for(let i=0;i<H.length;i++){const p=H[i],q=H[(i+1)%H.length],l=Math.hypot(q[0]-p[0],q[1]-p[1])||1,nx=sg*(q[1]-p[1])/l,ny=-sg*(q[0]-p[0])/l,d=nx*(p[0]-c[0])+ny*(p[1]-c[1]);if(d<=1e-9)continue;for(const v of need)k=Math.max(k,(nx*(v[0]-c[0])+ny*(v[1]-c[1]))/d);}return k>0?H.map(p=>[c[0]+(p[0]-c[0])*k,c[1]+(p[1]-c[1])*k]):H;}
+function silhouetteTileOutline(H,rect,col,row,cols,rows,tw,th,joint,depth,jw){
+ const [x0,y0]=rect,clipped=clipPolygon(H,rect);if(clipped.length<3)return[];const outline=[];
+ for(let i=0;i<clipped.length;i++){
+  const a=clipped[i],b=clipped[(i+1)%clipped.length];
+  const edgeName=Math.abs(a[0]-b[0])<.01?(Math.abs(a[0]-x0)<.02?'left':Math.abs(a[0]-x0-tw)<.02?'right':''):Math.abs(a[1]-b[1])<.01?(Math.abs(a[1]-y0)<.02?'top':Math.abs(a[1]-y0-th)<.02?'bottom':''):'';
+  if(edgeName){const internal=edgeName==='left'?col>0:edgeName==='right'?col<cols-1:edgeName==='top'?row>0:row<rows-1,n=edgeName==='left'?[-1,0]:edgeName==='right'?[1,0]:edgeName==='top'?[0,-1]:[0,1],q=edgePoints(a,b,n,internal,(col+row)%2===0?'male':'female',joint,depth,jw);outline.push(...q.slice(0,-1).map(p=>[p[0]-x0,p[1]-y0]));}
+  else outline.push([a[0]-x0,a[1]-y0]);
+ }
+ for(let i=outline.length-1;i>=0&&outline.length>3;i--)if(Math.hypot(outline[i][0]-outline[(i+1)%outline.length][0],outline[i][1]-outline[(i+1)%outline.length][1])<1e-5)outline.splice(i,1);
+ return outline;
+}
+function panelOutline(col,row,cols,rows,w,h,style,joint,depth,jw,radius){const p=(col+row)%2,top=row===0,bottom=row===rows-1,left=col===0,right=col===cols-1,r=style==='rounded'?Math.min(radius,w/5,h/5):0,out=[];const edge=(a,b,n,has)=>{let pts=edgePoints(a,b,n,has,p===0?'male':'female',joint,depth,jw);if(out.length&&Math.hypot(out.at(-1)[0]-pts[0][0],out.at(-1)[1]-pts[0][1])<1e-7)pts=pts.slice(1);out.push(...pts.slice(0,-1));};const arc=(cx,cy,rad,a0,a1)=>{for(let i=0;i<=5;i++){const a=a0+(a1-a0)*i/5;out.push([cx+Math.cos(a)*rad,cy+Math.sin(a)*rad]);}};const tl=top&&left?r:0,tr=top&&right?r:0,br=bottom&&right?r:0,bl=bottom&&left?r:0;edge([tl,0],[w-tr,0],[0,-1],row>0);if(tr)arc(w-r,r,r,-Math.PI/2,0);edge([w,tr],[w,h-br],[1,0],col<cols-1);if(br)arc(w-r,h-r,r,0,Math.PI/2);edge([w-br,h],[bl,h],[0,1],row<rows-1);if(bl)arc(r,h-r,r,Math.PI/2,Math.PI);edge([0,h-bl],[0,tl],[-1,0],col>0);if(tl)arc(r,r,r,Math.PI,Math.PI*1.5);if(out.length>2&&Math.hypot(out[0][0]-out.at(-1)[0],out[0][1]-out.at(-1)[1])<1e-5)out.pop();return out;}
+function shapeFromPoints(p){const s=new THREE.Shape();s.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)s.lineTo(p[i][0],p[i][1]);s.closePath();return s;}
+// A module URL that failed to load stays failed in the browser's module map, so every retry uses a fresh URL.
+const importTries=new Map();
+function importFresh(path){const n=importTries.get(path)||0;importTries.set(path,n+1);return import(new URL(path+(n?'?retry='+n:''),import.meta.url).href);}
+async function getCSG(){if(!window.__ledsignCsgPromise)window.__ledsignCsgPromise=importFresh('./vendor/three-bvh-csg.js').catch(error=>{window.__ledsignCsgPromise=null;throw error;});return window.__ledsignCsgPromise;}
+function csgCleanGeometry(source){const g=source.clone();g.clearGroups();for(const k of Object.keys(g.attributes))if(k!=='position')g.deleteAttribute(k);g.computeVertexNormals();return g;}
+async function subtractSolids(base,cuts){if(!cuts.length)return base;const {Brush,Evaluator,SUBTRACTION}=await getCSG(),ev=new Evaluator();ev.useGroups=false;ev.attributes=['position','normal'];ev.consolidateGroups=false;let current=csgCleanGeometry(base);for(const raw of cuts){const a=new Brush(current,new THREE.MeshStandardMaterial({color:'#fff'})),b=new Brush(csgCleanGeometry(raw),new THREE.MeshStandardMaterial({color:'#fff'}));a.updateMatrixWorld(true);b.updateMatrixWorld(true);const result=ev.evaluate(a,b,SUBTRACTION),next=result.geometry;current.dispose();b.geometry.dispose();raw.dispose();current=next;current.clearGroups();current.setDrawRange(0,current.index?current.index.count:current.attributes.position.count);}current.computeVertexNormals();return current;}
+function channelGeometry(paths,inner,outer,wallH,floorT){
+ // One letter's LED channel: outer band minus inner band, so branches that meet share one open channel and ends get rounded end walls.
+ // The floor edge sits mid-wall, so walls and floor are two closed solids that overlap without sharing edges (slicers union them).
+ const C=globalThis.ClipperLib;if(!C)throw Error('vendor/clipper.js did not load, so LED channels cannot be built. Check that the vendor folder was deployed next to index.html.');
+ const S=1000,band=width=>{const co=new C.ClipperOffset(2,.02*S),out=new C.Paths();for(const p of paths)if(p.points.length>1)co.AddPath(p.points.map(v=>new C.IntPoint(Math.round(v.x*S),Math.round(v.y*S))),C.JoinType.jtRound,p.closed?C.EndType.etClosedLine:C.EndType.etOpenRound);co.Execute(out,width*S/2);return out;};
+ const shapes=(subject,clip)=>{const c=new C.Clipper(),tree=new C.PolyTree(),out=[],v=ring=>ring.map(q=>new THREE.Vector2(q.X/S,q.Y/S)),walk=node=>{for(const o of node.Childs()){const s=new THREE.Shape(v(o.Contour()));for(const h of o.Childs()){s.holes.push(new THREE.Path(v(h.Contour())));walk(h);}out.push(s);}};c.AddPaths(subject,C.PolyType.ptSubject,true);if(clip)c.AddPaths(clip,C.PolyType.ptClip,true);c.Execute(clip?C.ClipType.ctDifference:C.ClipType.ctUnion,tree,C.PolyFillType.pftNonZero,C.PolyFillType.pftNonZero);walk(tree);return out;};
+ const outerBand=band(outer),walls=new THREE.ExtrudeGeometry(shapes(outerBand,band(inner)),{depth:wallH,bevelEnabled:false}),floor=new THREE.ExtrudeGeometry(shapes(band((inner+outer)/2)),{depth:floorT,bevelEnabled:false}),g=mergeGeometries([walls,floor]);
+ walls.dispose();floor.dispose();g.computeBoundingBox();return g;
+}
+function channelFootprint(paths,width){
+ // Outer outline of one letter's channel in Clipper units (1 µm); used to find letters whose channels touch.
+ const C=globalThis.ClipperLib,S=1000,co=new C.ClipperOffset(2,.05*S),out=new C.Paths();for(const p of paths)if(p.points.length>1)co.AddPath(p.points.map(v=>new C.IntPoint(Math.round(v.x*S),Math.round(v.y*S))),C.JoinType.jtRound,p.closed?C.EndType.etClosedLine:C.EndType.etOpenRound);co.Execute(out,width*S/2);return {out,b:C.Clipper.GetBounds(out)};
+}
+function channelClusters(items){
+ // items: [{fp,dx,dy}]. Returns index groups of letters whose channel outlines overlap at their current offsets.
+ const C=globalThis.ClipperLib,S=1000,root=items.map((_,i)=>i),find=i=>root[i]===i?i:(root[i]=find(root[i]));
+ const placed=items.map(it=>{const X=Math.round(it.dx*S),Y=Math.round(it.dy*S);return {out:it.fp.out.map(r=>r.map(p=>new C.IntPoint(p.X+X,p.Y+Y))),b:{left:it.fp.b.left+X,right:it.fp.b.right+X,top:it.fp.b.top+Y,bottom:it.fp.b.bottom+Y}};});
+ for(let i=0;i<placed.length;i++)for(let j=i+1;j<placed.length;j++){const a=placed[i].b,b=placed[j].b;if(find(i)===find(j)||a.right<b.left||b.right<a.left||a.bottom<b.top||b.bottom<a.top)continue;const c=new C.Clipper(),sol=new C.Paths();c.AddPaths(placed[i].out,C.PolyType.ptSubject,true);c.AddPaths(placed[j].out,C.PolyType.ptClip,true);c.Execute(C.ClipType.ctIntersection,sol,C.PolyFillType.pftNonZero,C.PolyFillType.pftNonZero);if(sol.some(r=>Math.abs(C.Clipper.Area(r))>1e4))root[find(i)]=find(j);}
+ const out=new Map();items.forEach((_,i)=>{const r=find(i);if(!out.has(r))out.set(r,[]);out.get(r).push(i);});return [...out.values()];
+}
+function placeLineChannels(){
+ // Lay letter channels out at their current offsets. Letters whose channels overlap are rebuilt as one shared channel, so walls and
+ // end caps inside the overlap disappear and the LED path stays open. Runs on every build and about ten times a second while dragging.
+ if(!lineChannels)return '';const {inner,outer,wallH,floorT,groups}=lineChannels,items=[...groups].map(([id,g])=>{const o=letterOffsets.get(id)||{x:0,y:0};return {id,g,fp:g.fp,dx:o.x,dy:o.y};}),joined=[];
+ for(const m of [...modelRoot.children])if(m.userData.lineChannel){modelRoot.remove(m);if(!m.userData.cached)m.geometry.dispose();m.material.dispose();}
+ for(const cluster of channelClusters(items)){const members=cluster.map(i=>items[i]),label=members.map(it=>it.g.label).join('+'),common={kind:'wall',groupLabel:label,lineChannel:true,ledProfile:$('ledProduct').value,insideWidth:inner};
+  if(members.length===1){addMesh(members[0].g.geometry,{name:'LED channel — '+label,userData:{...common,groupId:members[0].id,cached:true}});continue;}
+  const paths=members.flatMap(it=>it.g.paths.map(p=>({closed:p.closed,points:p.points.map(v=>({x:v.x+it.dx,y:v.y+it.dy}))})));joined.push(label);
+  addMesh(channelGeometry(paths,inner,outer,wallH,floorT),{name:'Joined LED channel — '+label,userData:{...common,memberIds:members.map(it=>it.id)}});}
+ return joined.length?' Joined LED channels: '+joined.join(', ')+'.':'';
+}
+const ID_STROKES={'0':[[0,0,3,0],[3,0,3,5],[3,5,0,5],[0,5,0,0]],'1':[[1.5,0,1.5,5]],'2':[[0,0,3,0],[3,0,3,2.5],[3,2.5,0,2.5],[0,2.5,0,5],[0,5,3,5]],'3':[[0,0,3,0],[3,0,3,5],[0,2.5,3,2.5],[0,5,3,5]],'4':[[0,0,0,2.5],[0,2.5,3,2.5],[3,0,3,5]],'5':[[3,0,0,0],[0,0,0,2.5],[0,2.5,3,2.5],[3,2.5,3,5],[3,5,0,5]],'6':[[3,0,0,0],[0,0,0,5],[0,2.5,3,2.5],[3,2.5,3,5],[3,5,0,5]],'7':[[0,0,3,0],[3,0,1,5]],'8':[[0,0,3,0],[3,0,3,5],[3,5,0,5],[0,5,0,0],[0,2.5,3,2.5]],'9':[[3,5,3,0],[3,0,0,0],[0,0,0,2.5],[0,2.5,3,2.5]],'T':[[0,0,3,0],[1.5,0,1.5,5]],'-':[[.3,2.5,2.7,2.5]]};
+function idEngravingCuts(tile,thickness){const prof=[[-.55,-.02],[.55,-.02],[.55,.58],[-.55,.58]],cuts=[];for(let i=0;i<tile.id.length;i++)for(const s of ID_STROKES[tile.id[i]]||[]){const sx=tile.x0+tile.w-(7+i*4),points=[new THREE.Vector2(sx-s[0],tile.y0+8+s[1]),new THREE.Vector2(sx-s[2],tile.y0+8+s[3])];if(points[0].distanceTo(points[1])<.8)continue;const g=sweepGeometry(points,prof,false,true);g.translate(0,0,-thickness-.01);cuts.push(g);}return cuts;}
+
+function pointInPolygon2D(x,y,poly){
+ if(!poly||poly.length<3)return false;let inside=false;
+ for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+  const a=poly[i],b=poly[j],cross=(x-a[0])*(b[1]-a[1])-(y-a[1])*(b[0]-a[0]),dot=(x-a[0])*(x-b[0])+(y-a[1])*(y-b[1]);
+  if(Math.abs(cross)<1e-6&&dot<=1e-6)return true;
+  if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;
+ }
+ return inside;
+}
+function pointSegmentDistance2D(x,y,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);}
+function mountEdgeClearance(x,y){return regionBoundaryDistance(backplaneRegions.length?backplaneRegions:[{outer:backplaneBoundary,holes:[]}],x,y);}
+function mountArtworkClearance(x,y){
+ const radius=Math.max(7,(rearGhostWidths.outer||13)/2+3);let best=Infinity;
+ for(const path of rearGhostPaths){const count=path.closed?path.points.length:path.points.length-1;for(let i=0;i<count;i++){const a=path.points[i],b=path.points[(i+1)%path.points.length];best=Math.min(best,pointSegmentDistance2D(x,y,[a.x,a.y],[b.x,b.y]));}}
+ return best-radius;
+}
+function mountPointFits(x,y,ignoreIds=new Set()){
+ if(!backplaneBounds||!isBackplanePoint(x,y))return false;
+ if(mountEdgeClearance(x,y)<13.2-1e-5)return false; // 10 mm of material outside the 6.4 mm eyelet opening.
+ if(mountArtworkClearance(x,y)<0)return false;
+ for(const p of eyeletPointsForBoundsRaw(backplaneBounds))if(!ignoreIds.has(p.id)&&Math.hypot(x-p.x,y-p.y)<7.5)return false;
+ return true;
+}
+function eyeletPointsForBoundsRaw(bounds){
+ return (eyeletLocations||[]).map((p,index)=>({id:p.id||('M'+(index+1)),index,x:bounds.minX+p.u*bounds.width,y:bounds.minY+p.v*bounds.height,diameter:6.4}));
+}
+function nearestValidMountPosition(x,y,ignoreIds=new Set()){
+ if(!backplaneBounds)return null;
+ let best=null,bestD=Infinity;const b=backplaneBounds;
+ for(let row=1;row<20;row++)for(let col=1;col<20;col++){
+  const px=b.minX+b.width*col/20,py=b.minY+b.height*row/20,d=(px-x)**2+(py-y)**2;
+  if(d>=bestD||!mountPointFits(px,py,ignoreIds))continue;
+  best={x:px,y:py};bestD=d;
+ }
+ return best;
+}
+function eyeletPointsForBounds(bounds){
+ if(!eyeletLocations){
+  eyeletLocations=[];
+  const defaults=[[.24,.82],[.76,.82]];
+  for(let i=0;i<defaults.length;i++){
+   const x=bounds.minX+defaults[i][0]*bounds.width,y=bounds.minY+defaults[i][1]*bounds.height;
+   const candidate=mountPointFits(x,y,new Set())?{x,y}:nearestValidMountPosition(x,y,new Set());
+   if(candidate)eyeletLocations.push({id:'M'+(i+1),u:(candidate.x-bounds.minX)/bounds.width,v:(candidate.y-bounds.minY)/bounds.height});
+  }
+ }
+ eyeletLocations=eyeletLocations.map((p,index)=>({id:p.id||('M'+(index+1)),u:p.u,v:p.v}));
+ const points=eyeletPointsForBoundsRaw(bounds);
+ for(const p of points){
+  if(!mountPointFits(p.x,p.y,new Set([p.id]))){
+   const candidate=nearestValidMountPosition(p.x,p.y,new Set([p.id]));
+   if(candidate){const loc=eyeletLocations.find(q=>q.id===p.id);loc.u=(candidate.x-bounds.minX)/bounds.width;loc.v=(candidate.y-bounds.minY)/bounds.height;p.x=candidate.x;p.y=candidate.y;}
+   else buildValidationErrors.push('Mounting point '+p.id+' cannot maintain 10 mm of material clearance on this backplane. Move or remove it, or choose a larger backplane.');
+  }
+ }
+ return eyeletPointsForBoundsRaw(bounds);
+}
+function eyeletHoleCutter(point,thickness){
+ const radius=3.2,g=new THREE.CylinderGeometry(radius,radius,thickness+1.2,36,1,false);
+ g.rotateX(Math.PI/2);g.translate(point.x,point.y,-thickness/2);return g;
+}
+
+function wireChannelDimensions(backplaneThickness){
+ const width=Math.max(4,+$('wireRouteWidth').value||7),requestedDepth=Math.max(.2,+$('wireRouteDepth').value||2),frontSkin=.8,depth=Math.min(requestedDepth,Math.max(.15,backplaneThickness-frontSkin)),flare=1.4;
+ return {width,requestedDepth,depth,frontSkin,flare,cavityWidth:width+2*flare,guardClearance:.25,capOverhang:1.8,guardLip:.6};
+}
+function wireGrooveProfile(dim){
+ const m=dim.width/2,c=dim.cavityWidth/2,d=dim.depth;
+ return [[-m,-.025],[m,-.025],[c,d],[-c,d]];
+}
+function wireGuardProfile(dim){
+ const m=dim.width/2-.25,c=dim.cavityWidth/2-dim.guardClearance,cap=m+dim.capOverhang;
+ return [[-cap,-dim.guardLip],[cap,-dim.guardLip],[cap,0],[m,0],[c,Math.max(.15,dim.depth-.25)],[-c,Math.max(.15,dim.depth-.25)],[-m,0],[-cap,0]];
+}
+function wireChannelCutter(route,thickness){
+ const dim=wireChannelDimensions(thickness),points=(route.points||route).map(p=>new THREE.Vector2(p.x,p.y));
+ if(points.length<2)return null;
+ const g=sweepGeometry(points,wireGrooveProfile(dim),false,true);g.translate(0,0,-thickness);return g;
+}
+function addTileIdPreview(tile,thickness){
+ if(!idPreviewRoot)return;const positions=[],z=-thickness-.08;
+ for(let i=0;i<tile.id.length;i++)for(const s of ID_STROKES[tile.id[i]]||[]){
+  const x=tile.x0+tile.w-(7+i*4);
+  positions.push(x-s[0],tile.y0+8+s[1],z,x-s[2],tile.y0+8+s[3],z);
+ }
+ if(!positions.length)return;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ const m=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:'#f5c58d',transparent:true,opacity:.98,depthTest:true,depthWrite:false}));
+ m.renderOrder=4;idPreviewRoot.add(m);
+}
+function pathPoints(path,count=96){
+ const pts=path.getPoints(count).map(p=>[p.x,-p.y]),out=[];
+ for(const p of pts)if(!out.length||Math.hypot(p[0]-out.at(-1)[0],p[1]-out.at(-1)[1])>.01)out.push(p);
+ if(out.length>2&&Math.hypot(out[0][0]-out.at(-1)[0],out[0][1]-out.at(-1)[1])<.01)out.pop();
+ return out;
+}
+function polygonArea2D(poly){let a=0;for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length];a+=p[0]*q[1]-q[0]*p[1];}return a/2;}
+async function parseCustomBackplaneSvg(txt,label){
+ const parsed=svgLoader.parse(txt),shapes=[];
+ for(const path of parsed.paths||[]){
+  if(path.userData?.style?.fill==='none')continue;
+  for(const shape of SVGLoader.createShapes(path)){
+   const outer=pathPoints(shape,128),holes=(shape.holes||[]).map(h=>pathPoints(h,96)).filter(p=>p.length>=3&&Math.abs(polygonArea2D(p))>.01);
+   if(outer.length<3||Math.abs(polygonArea2D(outer))<.01)continue;
+   shapes.push({outer,holes});
+  }
+ }
+ if(!shapes.length)throw new Error('The custom backplane SVG needs at least one filled, closed outer shape. Convert strokes to outlines and retry.');
+ const all=shapes.flatMap(s=>s.outer),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),bounds={minX:minOf(xs),maxX:maxOf(xs),minY:minOf(ys),maxY:maxOf(ys)};
+ bounds.width=bounds.maxX-bounds.minX;bounds.height=bounds.maxY-bounds.minY;
+ if(bounds.width<.01||bounds.height<.01)throw new Error('The custom backplane SVG has no measurable area.');
+ const cx=(bounds.minX+bounds.maxX)/2,cy=(bounds.minY+bounds.maxY)/2;
+ customBackplaneData={label:label||'Custom backplane',bounds:{width:bounds.width,height:bounds.height},shapes:shapes.map(s=>({outer:s.outer.map(p=>[p[0]-cx,p[1]-cy]),holes:s.holes.map(h=>h.map(p=>[p[0]-cx,p[1]-cy]))}))};
+ $('customBackplaneName').textContent=customBackplaneData.label+' · '+shapes.length+' outer shape(s), '+shapes.reduce((n,s)=>n+s.holes.length,0)+' cutout(s)';
+ $('backplaneStyle').value='custom';toggleFields();scheduleRebuild();setStatus('Custom backplane loaded. Check that all artwork and required clearance fit within the outline.');
+}
+function scaleCustomBackplane(b,margin,pad,grow=1){
+ if(!customBackplaneData)throw new Error('Choose a custom backplane SVG before selecting Custom SVG outline.');
+ const targetW=Math.max(100,b.width+2*(margin+pad)),targetH=Math.max(100,b.height+2*(margin+pad)),scale=Math.max(targetW/customBackplaneData.bounds.width,targetH/customBackplaneData.bounds.height)*grow,cx=(b.minX+b.maxX)/2,cy=(b.minY+b.maxY)/2;
+ return customBackplaneData.shapes.map(s=>({outer:s.outer.map(p=>[cx+p[0]*scale,cy+p[1]*scale]),holes:s.holes.map(h=>h.map(p=>[cx+p[0]*scale,cy+p[1]*scale]))}));
+}
+function regionContainsPoint(regions,x,y){return (regions||[]).some(r=>pointInPolygon2D(x,y,r.outer)&&!(r.holes||[]).some(h=>pointInPolygon2D(x,y,h)));}
+function regionBoundaryDistance(regions,x,y){
+ const region=(regions||[]).find(r=>pointInPolygon2D(x,y,r.outer)&&!(r.holes||[]).some(h=>pointInPolygon2D(x,y,h)));
+ if(!region)return -Infinity;
+ const contours=[region.outer,...(region.holes||[])];return Math.min(...contours.flatMap(poly=>poly.map((p,i)=>pointSegmentDistance2D(x,y,p,poly[(i+1)%poly.length]))));
+}
+function customArtworkFits(regions,paths,clearance){
+ const test=(x,y)=>regions.some(r=>{
+  if(!pointInPolygon2D(x,y,r.outer)||(r.holes||[]).some(h=>pointInPolygon2D(x,y,h)))return false;
+  const contours=[r.outer,...(r.holes||[])],d=Math.min(...contours.flatMap(poly=>poly.map((p,i)=>pointSegmentDistance2D(x,y,p,poly[(i+1)%poly.length]))));return d>=clearance;
+ });
+ for(const path of paths||[]){const count=path.closed?path.points.length:path.points.length-1;for(let i=0;i<count;i++){
+  const a=path.points[i],b=path.points[(i+1)%path.points.length],len=a.distanceTo(b),steps=Math.max(1,Math.ceil(len/5));
+  for(let k=0;k<=steps;k++){const t=k/steps;if(!test(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return false;}
+ }}
+ return true;
+}
+function profileCustomTileContour(world,x0,y0,tw,th,col,row,cols,rows,joint,depth,jw){
+ const outline=[],parity=(col+row)%2===0?'male':'female';
+ for(let i=0;i<world.length;i++){
+  const a=world[i],b=world[(i+1)%world.length],edgeName=Math.abs(a[0]-b[0])<.01?(Math.abs(a[0]-x0)<.02?'left':Math.abs(a[0]-x0-tw)<.02?'right':''):Math.abs(a[1]-b[1])<.01?(Math.abs(a[1]-y0)<.02?'top':Math.abs(a[1]-y0-th)<.02?'bottom':''):'';
+  if(edgeName){const internal=edgeName==='left'?col>0:edgeName==='right'?col<cols-1:edgeName==='top'?row>0:row<rows-1,normal=edgeName==='left'?[-1,0]:edgeName==='right'?[1,0]:edgeName==='top'?[0,-1]:[0,1],q=edgePoints(a,b,normal,internal,parity,joint,depth,jw);outline.push(...q.slice(0,-1).map(p=>[p[0]-x0,p[1]-y0]));}
+  else outline.push([a[0]-x0,a[1]-y0]);
+ }
+ for(let i=outline.length-1;i>=0&&outline.length>3;i--)if(Math.hypot(outline[i][0]-outline[(i+1)%outline.length][0],outline[i][1]-outline[(i+1)%outline.length][1])<1e-5)outline.splice(i,1);
+ return outline;
+}
+function clipCustomBackplaneTile(regions,rect,col,row,cols,rows,tw,th,joint,depth,jw){
+ const C=globalThis.ClipperLib,S=1000,out=[],[x0,y0,x1,y1]=rect;if(!C)throw new Error('Clipper is unavailable; custom tiled backplanes cannot be generated.');
+ const toPath=p=>p.map(v=>new C.IntPoint(Math.round(v[0]*S),Math.round(v[1]*S))),clipRect=toPath([[x0,y0],[x1,y0],[x1,y1],[x0,y1]]);
+ const append=(node)=>{
+  if(node.IsHole())return;
+  const outerWorld=profileCustomTileContour(node.Contour().map(p=>[p.X/S,p.Y/S]),x0,y0,tw,th,col,row,cols,rows,joint,depth,jw);if(outerWorld.length<3)return;
+  const shape=shapeFromPoints(outerWorld),worldOuter=outerWorld.map(p=>[p[0]+x0,p[1]+y0]),worldHoles=[];
+  for(const child of node.Childs())if(child.IsHole()){
+   const hole=child.Contour().map(p=>[p.X/S,p.Y/S]),local=hole.map(p=>[p[0]-x0,p[1]-y0]);
+   if(local.length>=3){const path=new THREE.Path();path.moveTo(local[0][0],local[0][1]);for(let i=1;i<local.length;i++)path.lineTo(local[i][0],local[i][1]);path.closePath();shape.holes.push(path);worldHoles.push(hole);}
+   for(const island of child.Childs())if(!island.IsHole())append(island);
+  }
+  out.push({shape,outer:worldOuter,holes:worldHoles});
+ };
+ for(const region of regions){
+  const clipper=new C.Clipper(),tree=new C.PolyTree();clipper.AddPath(toPath(region.outer),C.PolyType.ptSubject,true);for(const h of region.holes||[])clipper.AddPath(toPath(h),C.PolyType.ptSubject,true);clipper.AddPath(clipRect,C.PolyType.ptClip,true);
+  if(!clipper.Execute(C.ClipType.ctIntersection,tree,C.PolyFillType.pftEvenOdd,C.PolyFillType.pftEvenOdd))throw new Error('Could not clip custom backplane to tile '+(row+1)+','+(col+1)+'.');
+  for(const child of tree.Childs())if(!child.IsHole())append(child);
+ }
+ return out;
+}
+function isBackplanePoint(x,y){return backplaneRegions.length?regionContainsPoint(backplaneRegions,x,y):(backplaneTileRegions.length?backplaneTileRegions.some(poly=>pointInPolygon2D(x,y,poly)):backplaneBoundary.length>=3&&pointInPolygon2D(x,y,backplaneBoundary));}
+function updateMountSelectionUI(){
+ const editor=$('eyeletEditor');if(!editor)return;
+ const active=$('mountStyle').value==='eyelets';editor.hidden=!active;
+ const list=$('mountPointList');if(list){list.replaceChildren();for(const p of eyeletPointsForBoundsRaw(backplaneBounds||{minX:0,minY:0,width:0,height:0})){const button=document.createElement('button');button.type='button';button.className=selectedMountIds.has(p.id)?'active':'';button.textContent=p.id;button.title='Select mounting point '+p.id;button.addEventListener('click',e=>{if(e.shiftKey||e.ctrlKey||e.metaKey){if(selectedMountIds.has(p.id))selectedMountIds.delete(p.id);else selectedMountIds.add(p.id);}else{selectedMountIds.clear();selectedMountIds.add(p.id);}refreshMountSelection();});list.append(button);}}
+ const count=selectedMountIds.size,status=$('mountSelectionStatus');if(status)status.textContent=count?count+' mounting point(s) selected. Shift-click a point in the preview or its label to add/remove selection.':'Select mounting points in the rear preview or from the labels below.';
+ for(const id of ['removeMountPoints','mountAlignLeft','mountAlignCenterX','mountAlignRight','mountAlignTop','mountAlignCenterY','mountAlignBottom','mountDistributeX','mountDistributeY']){const button=$(id);if(button)button.disabled=count===0||(id.startsWith('mountDistribute')&&count<3);}
+}
+function refreshMountSelection(){
+ for(const mesh of modelRoot?.children||[])if(mesh.userData.eyeletId&&mesh.material?.color)mesh.material.color.set(selectedMountIds.has(mesh.userData.eyeletId)?'#e34234':'#b6becb');
+ updateMountSelectionUI();
+}
+function updateEyeletWarning(){
+ const el=$('eyeletWarning');if(!el)return;
+ if($('mountStyle').value!=='eyelets'||!backplaneBounds){el.hidden=true;updateMountSelectionUI();return;}
+ if(eyeletMessage){el.textContent=eyeletMessage;el.hidden=false;updateMountSelectionUI();return;}
+ const points=eyeletPointsForBounds(backplaneBounds),invalid=points.filter(p=>!mountPointFits(p.x,p.y,new Set([p.id])));
+ if(invalid.length){el.textContent=invalid.map(p=>p.id+' cannot meet the 10 mm edge clearance.').join(' ');el.hidden=false;}
+ else el.hidden=true;
+ updateMountSelectionUI();
+}
+function addEyeletPoint(){
+ if(!$('backplaneEnabled').checked||!backplaneBounds){setStatus('Generate a backplane before adding mounting points.',true);return;}
+ if(!eyeletLocations)eyeletPointsForBounds(backplaneBounds);
+ const points=eyeletPointsForBoundsRaw(backplaneBounds),ignore=new Set(points.map(p=>p.id));let best=null,bestScore=-1;
+ for(let row=1;row<20;row++)for(let col=1;col<20;col++){
+  const x=backplaneBounds.minX+backplaneBounds.width*col/20,y=backplaneBounds.minY+backplaneBounds.height*row/20;
+  if(!mountPointFits(x,y,ignore))continue;
+  const edge=mountEdgeClearance(x,y),spacing=points.length?Math.min(...points.map(p=>Math.hypot(x-p.x,y-p.y))):1000,score=Math.min(edge,spacing);
+  if(score>bestScore){bestScore=score;best={x,y};}
+ }
+ if(!best){setStatus('No additional mounting point fits while maintaining 10 mm edge clearance and avoiding the lettering.',true);return;}
+ const n=Math.max(0,...eyeletLocations.map(p=>Number(String(p.id).replace(/^M/i,''))||0))+1,id='M'+n;
+ eyeletLocations.push({id,u:(best.x-backplaneBounds.minX)/backplaneBounds.width,v:(best.y-backplaneBounds.minY)/backplaneBounds.height});
+ selectedMountIds.clear();selectedMountIds.add(id);scheduleRebuild();noteAction('Added mounting point '+id+'.');
+}
+function removeSelectedEyelets(){
+ if(!selectedMountIds.size){setStatus('Select one or more mounting points to remove.',true);return;}
+ const ids=[...selectedMountIds];eyeletLocations=(eyeletLocations||[]).filter(p=>!selectedMountIds.has(p.id));selectedMountIds.clear();scheduleRebuild();noteAction('Removed '+ids.join(', ')+'.');
+}
+function alignSelectedEyelets(mode){
+ const selected=eyeletPointsForBoundsRaw(backplaneBounds||{minX:0,minY:0,width:0,height:0}).filter(p=>selectedMountIds.has(p.id));
+ if(!selected.length){setStatus('Select mounting points before using alignment.',true);return;}
+ if(selected.length<2&&!mode.startsWith('distribute')){setStatus('Select at least two mounting points to align.',true);return;}
+ let target;const xs=selected.map(p=>p.x),ys=selected.map(p=>p.y);
+ if(mode==='left')target=Math.min(...xs);else if(mode==='right')target=Math.max(...xs);else if(mode==='centerX')target=(Math.min(...xs)+Math.max(...xs))/2;else if(mode==='top')target=Math.max(...ys);else if(mode==='bottom')target=Math.min(...ys);else if(mode==='centerY')target=(Math.min(...ys)+Math.max(...ys))/2;
+ const candidates=selected.map(p=>({id:p.id,x:mode==='distributeX'?p.x:mode==='left'||mode==='right'||mode==='centerX'?target:p.x,y:mode==='distributeY'?p.y:mode==='top'||mode==='bottom'||mode==='centerY'?target:p.y}));
+ if(mode==='distributeX'||mode==='distributeY'){const sorted=selected.slice().sort((a,b)=>mode==='distributeX'?a.x-b.x:a.y-b.y),first=mode==='distributeX'?sorted[0].x:sorted[0].y,last=mode==='distributeX'?sorted.at(-1).x:sorted.at(-1).y;for(let i=0;i<sorted.length;i++){const p=sorted[i],q=candidates.find(c=>c.id===p.id),v=first+(last-first)*i/(sorted.length-1);if(mode==='distributeX')q.x=v;else q.y=v;}}
+ const ignored=new Set(selected.map(p=>p.id));
+ for(const p of candidates)if(!mountPointFits(p.x,p.y,ignored)){setStatus('Those mounting points cannot be aligned without breaking the 10 mm edge clearance. No points were moved.',true);return;}
+ for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++)if(Math.hypot(candidates[i].x-candidates[j].x,candidates[i].y-candidates[j].y)<7.5){setStatus('Those alignment positions would overlap mounting holes. No points were moved.',true);return;}
+ for(const p of candidates){const loc=eyeletLocations.find(q=>q.id===p.id);loc.u=(p.x-backplaneBounds.minX)/backplaneBounds.width;loc.v=(p.y-backplaneBounds.minY)/backplaneBounds.height;}
+ scheduleRebuild();noteAction('Aligned selected mounting points: '+mode+'.');
+}
+function validateWireHole(h,paths,thickness){
+ const radius=Math.max(1,(+h.diameter||4)/2);
+ if(!backplaneBounds||!isBackplanePoint(h.x,h.y))return 'Hole is outside the solid backplane.';
+ const edge=regionBoundaryDistance(backplaneRegions.length?backplaneRegions:[{outer:backplaneBoundary,holes:[]}],h.x,h.y);
+ if(edge<radius+.8)return 'Hole is too close to the backplane edge; keep the full opening inside the solid plate.';
+ const textClearance=Math.max(2,(rearGhostWidths.outer||13)/2)+radius+1;
+ for(const path of paths||[]){const count=path.closed?path.points.length:path.points.length-1;for(let i=0;i<count;i++){const a=path.points[i],b=path.points[(i+1)%path.points.length];if(pointSegmentDistance2D(h.x,h.y,[a.x,a.y],[b.x,b.y])<textClearance)return 'Hole overlaps or is too close to the lettering / LED channel.';}}
+ const dim=wireChannelDimensions(thickness||+$('backplaneThickness').value||3);
+ for(const route of wireRoutes)for(let i=1;i<route.points.length;i++)if(pointSegmentDistance2D(h.x,h.y,[route.points[i-1].x,route.points[i-1].y],[route.points[i].x,route.points[i].y])<radius+dim.cavityWidth/2+1)return 'Hole overlaps or is too close to a rear wiring channel.';
+ for(const p of eyeletPointsForBoundsRaw(backplaneBounds))if(Math.hypot(h.x-p.x,h.y-p.y)<radius+3.2+1)return 'Hole overlaps or is too close to a mounting point.';
+ for(const other of wireHoles)if(other!==h&&Math.hypot(h.x-other.x,h.y-other.y)<radius+Math.max(1,(+other.diameter||4)/2)+1)return 'Pass-through holes must not overlap.';
+ return '';
+}
+function equalizeHoleValidation(paths,thickness){
+ for(let i=0;i<wireHoles.length;i++){const h=wireHoles[i];h.id=h.id||('H'+(i+1));h.validationError=validateWireHole(h,paths,thickness);if(h.validationError)buildValidationErrors.push('Pass-through hole '+h.id+': '+h.validationError);}
+}
+function refreshRearGhost(){
+ if(!wireGhostRoot)return;disposeGroup(wireGhostRoot);wireGhostRoot.visible=!!wireMode&&!!backplaneBounds;
+ if(!wireGhostRoot.visible||!rearGhostPaths.length)return;
+ const z=wireBackZ-.16,material=new THREE.LineBasicMaterial({color:'#ff806d',transparent:true,opacity:.82,depthTest:false,depthWrite:false});
+ const draw=(width)=>{
+  const fp=channelFootprint(rearGhostPaths,width);
+  for(const ring of fp.out){if(ring.length<3)continue;const pts=ring.map(p=>new THREE.Vector3(p.X/1000,p.Y/1000,z)),g=new THREE.BufferGeometry().setFromPoints(pts);wireGhostRoot.add(new THREE.LineLoop(g,material));}
+ };
+ try{draw(rearGhostWidths.outer);draw(rearGhostWidths.inner);}
+ catch{for(const path of rearGhostPaths){const pts=path.points.map(p=>new THREE.Vector3(p.x,p.y,z));if(pts.length>1){const g=new THREE.BufferGeometry().setFromPoints(pts);wireGhostRoot.add(path.closed?new THREE.LineLoop(g,material):new THREE.Line(g,material));}}}
+}
+async function addBackplane(b,paths,reach=0){
+ if(!$('backplaneEnabled').checked){backplaneBounds=null;backplaneBoundary=[];backplaneTileRegions=[];backplaneHoleRegions=[];backplaneRegions=[];customBackplaneWorld=null;return{thickness:0,tiles:[],bounds:b};}
+ const style=$('backplaneStyle').value,margin=Math.max(5,+$('backplaneMargin').value||18),thick=Math.max(1,+$('backplaneThickness').value||3),bedW=+$('bedWidth').value||256,bedH=+$('bedHeight').value||256;
+ const pad=Math.max(0,+reach||0),artCenterX=(b.minX+b.maxX)/2,artCenterY=(b.minY+b.maxY)/2,baseW=Math.max(100,b.width+2*(margin+pad)),baseH=Math.max(100,b.height+2*(margin+pad));
+ let minX=artCenterX-baseW/2,maxX=artCenterX+baseW/2,minY=artCenterY-baseH/2,maxY=artCenterY+baseH/2,H=[],regions=[];
+ customBackplaneWorld=null;
+ if(style==='custom'){
+  let grow=1;customBackplaneWorld=scaleCustomBackplane(b,margin,pad,grow);while(!customArtworkFits(customBackplaneWorld,paths,margin+pad)&&grow<3){grow*=1.05;customBackplaneWorld=scaleCustomBackplane(b,margin,pad,grow);}regions=customBackplaneWorld;
+   if(grow>1)pendingWarnings.push('The custom outline was enlarged to '+Math.round(grow*100)+'% so the artwork and its clearance fit inside it.');
+   if(!customArtworkFits(regions,paths,margin+pad))buildValidationErrors.push('The artwork and LED channel clearance do not fit inside the custom SVG outline, even enlarged to '+Math.round(grow*100)+'%. Use an outline that surrounds the artwork (for example a rectangle or rounded rectangle), edit the SVG, or reduce the backplane margin.');
+  const xs=regions.flatMap(r=>r.outer.map(p=>p[0])),ys=regions.flatMap(r=>r.outer.map(p=>p[1]));minX=minOf(xs);maxX=maxOf(xs);minY=minOf(ys);maxY=maxOf(ys);
+ }else{
+  const clearance=()=>roundOffsetConvex(hull(paths.flatMap(p=>p.points)),margin+pad);
+  if(style==='contour')H=clearance();else if(['ellipse','shield','hexagon'].includes(style))H=fitSilhouette(backplaneSilhouette(style,artCenterX,artCenterY,baseW,baseH),[artCenterX,artCenterY],clearance());
+  if(H.length>=3){
+   const hx=H.map(p=>p[0]),hy=H.map(p=>p[1]),dx=artCenterX-(Math.min(...hx)+Math.max(...hx))/2,dy=artCenterY-(Math.min(...hy)+Math.max(...hy))/2;
+   H=H.map(p=>[p[0]+dx,p[1]+dy]);const hMinX=Math.min(...H.map(p=>p[0])),hMaxX=Math.max(...H.map(p=>p[0])),hMinY=Math.min(...H.map(p=>p[1])),hMaxY=Math.max(...H.map(p=>p[1]));
+   const totalW=Math.max(100,hMaxX-hMinX),totalH=Math.max(100,hMaxY-hMinY);minX=artCenterX-totalW/2;maxX=artCenterX+totalW/2;minY=artCenterY-totalH/2;maxY=artCenterY+totalH/2;currentBounds.hull=H;
+  }else{minX=artCenterX-baseW/2;maxX=artCenterX+baseW/2;minY=artCenterY-baseH/2;maxY=artCenterY+baseH/2;}
+  backplaneBoundary=H.length>=3?H.map(p=>[p[0],p[1]]):panelOutline(0,0,1,1,maxX-minX,maxY-minY,style,'none',0,0,9).map(p=>[p[0]+minX,p[1]+minY]);
+  regions=[{outer:backplaneBoundary,holes:[]}];
+ }
+ const totalW=maxX-minX,totalH=maxY-minY;backplaneBounds={minX,minY,maxX,maxY,width:totalW,height:totalH};
+ backplaneRegions=regions.map(r=>({outer:r.outer.map(p=>p.slice()),holes:(r.holes||[]).map(h=>h.map(p=>p.slice()))}));backplaneBoundary=backplaneRegions[0]?.outer.map(p=>p.slice())||[];
+ backplaneTileRegions=[];backplaneHoleRegions=[];
+ const eyelets=$('mountStyle').value==='eyelets'?eyeletPointsForBounds(backplaneBounds):[];
+ const maxW=Math.max(100,+$('tileWidth').value||250),maxH=Math.max(100,+$('tileHeight').value||250),cols=Math.max(1,Math.min(Math.ceil(totalW/maxW),Math.max(1,Math.floor(totalW/100)))),rows=Math.max(1,Math.min(Math.ceil(totalH/maxH),Math.max(1,Math.floor(totalH/100)))),tw=totalW/cols,th=totalH/rows,joint=$('joinStyle').value,depth=joint==='none'?0:Math.max(1,+$('joinDepth').value||7),jw=Math.max(16,+$('joinWidth').value||24),tiles=[];
+ if(tw+depth>bedW||th+depth>bedH)pendingWarnings.push('Tile plus connector overhang ('+(tw+depth).toFixed(0)+' × '+(th+depth).toFixed(0)+' mm) is larger than the selected build plate ('+bedW+' × '+bedH+' mm). Use smaller tiles or a larger bed.');
+ if((H.length>=3||style==='custom')&&(cols>1||rows>1))pendingWarnings.push('Custom / silhouette backing is divided into clipped, interlocking tiles; check tile edges and connector clearances in the slicer.');
+ equalizeHoleValidation(paths,thick);
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+  const x0=minX+col*tw,y0=minY+row*th,rect=[x0,y0,x0+tw,y0+th];let tileParts=[];
+  if(style==='custom')tileParts=clipCustomBackplaneTile(regions,rect,col,row,cols,rows,tw,th,joint,depth,jw);
+  else{
+   let outline;
+   if(H.length>=3){outline=silhouetteTileOutline(H,rect,col,row,cols,rows,tw,th,joint,depth,jw);if(outline.length>=3)tileParts=[{shape:shapeFromPoints(outline),outer:outline.map(p=>[p[0]+x0,p[1]+y0]),holes:[]}];}
+   else{outline=panelOutline(col,row,cols,rows,tw,th,style,joint,depth,jw,9);if(outline.length>=3)tileParts=[{shape:shapeFromPoints(outline),outer:outline.map(p=>[p[0]+x0,p[1]+y0]),holes:[]}];}
+  }
+  if(!tileParts.length)continue;
+  const tileOutlines=tileParts.map(p=>p.outer),tileHoles=tileParts.flatMap(p=>p.holes||[]),tileRegions=tileParts.map(p=>({outer:p.outer,holes:p.holes||[]})),tile={id:'T'+String(row+1).padStart(2,'0')+'-'+String(col+1).padStart(2,'0'),x0,y0,w:tw,h:th,outline:tileOutlines[0],outlines:tileOutlines,holes:tileHoles,regions:tileRegions};
+  backplaneTileRegions.push(...tileOutlines);backplaneHoleRegions.push(...tileHoles);
+  const directEyeletIds=new Set();
+  for(const h of eyelets){const part=tileParts.find(p=>pointInPolygon2D(h.x,h.y,p.outer)&&!(p.holes||[]).some(poly=>pointInPolygon2D(h.x,h.y,poly)));if(part&&mountPointFits(h.x,h.y,new Set([h.id]))){const contours=[part.outer,...(part.holes||[])],edgeDistance=Math.min(...contours.flatMap(poly=>poly.map((p,i)=>pointSegmentDistance2D(h.x,h.y,p,poly[(i+1)%poly.length])))),seamDistance=Math.min(h.x-x0,x0+tw-h.x,h.y-y0,y0+th-h.y);if(edgeDistance>3.3&&seamDistance>3.3){const hole=new THREE.Path();hole.absarc(h.x-x0,h.y-y0,3.2,0,Math.PI*2,true);part.shape.holes.push(hole);directEyeletIds.add(h.id);}}}
+  const geos=tileParts.map(part=>new THREE.ExtrudeGeometry(part.shape,{depth:thick,bevelEnabled:false,curveSegments:8})),baseGeo=geos.length===1?geos[0]:mergeGeometries(geos,false);
+  if(!baseGeo){geos.forEach(g=>g.dispose());throw new Error('Could not combine custom backplane regions for tile '+tile.id+'.');}
+  if(geos.length>1)geos.forEach(g=>g.dispose());baseGeo.translate(x0,y0,-thick);let finalGeo=baseGeo,idSuccess=!$('embossIds').checked;
+  const idCuts=$('embossIds').checked?idEngravingCuts(tile,thick):[],eyeletCuts=eyelets.filter(h=>!directEyeletIds.has(h.id)&&h.x+3.2>=x0-.02&&h.x-3.2<=x0+tw+.02&&h.y+3.2>=y0-.02&&h.y-3.2<=y0+th+.02).map(h=>eyeletHoleCutter(h,thick)),wireCuts=wireHoles.filter(h=>!h.validationError&&h.x+Math.max(1,(+h.diameter||4)/2)>=x0-.02&&h.x-Math.max(1,(+h.diameter||4)/2)<=x0+tw+.02&&h.y+Math.max(1,(+h.diameter||4)/2)>=y0-.02&&h.y-Math.max(1,(+h.diameter||4)/2)<=y0+th+.02).map(h=>holeCutter(h,thick)),routeCuts=wireRoutes.filter(route=>{const xs=route.points.map(p=>p.x),ys=route.points.map(p=>p.y),pad=wireChannelDimensions(thick).cavityWidth/2+1;return Math.max(...xs)>=x0-pad&&Math.min(...xs)<=x0+tw+pad&&Math.max(...ys)>=y0-pad&&Math.min(...ys)<=y0+th+pad;}).map(route=>wireChannelCutter(route,thick)).filter(Boolean),cuts=[...idCuts,...eyeletCuts,...wireCuts,...routeCuts];
+  if(cuts.length){
+   try{finalGeo=await subtractSolids(baseGeo,cuts);idSuccess=true;}
+   catch(error){
+    cuts.forEach(g=>g.dispose());
+    if(wireCuts.length){for(const h of wireHoles.filter(h=>!h.validationError&&h.x>=x0-.02&&h.x<=x0+tw+.02&&h.y>=y0-.02&&h.y<=y0+th+.02))h.validationError='The Boolean cut failed; reposition the hole or try rebuilding the backplane.';}
+    if(wireCuts.length||eyeletCuts.length)throw new Error('Could not cut a valid mounting or pass-through hole through the backplane: '+error.message);
+    if(routeCuts.length)buildValidationErrors.push('Could not carve a rear wiring channel into tile '+tile.id+': '+error.message+' The current preview keeps the solid tile; fix the geometry issue before exporting.');
+    else if(idCuts.length)pendingWarnings.push('Could not engrave the tile IDs: '+error.message+'. The plates are built without those decorative IDs.');
+   }
+  }
+  if($('embossIds').checked&&idSuccess)addTileIdPreview(tile,thick);
+  addMesh(finalGeo,{name:'Backplane '+tile.id,color:'#687487',userData:{kind:'backplane',tileId:tile.id,tileX:col+1,tileY:row+1}});tiles.push(tile);
+ }
+ return{thickness:thick,tiles,bounds:{minX,maxX,minY,maxY,width:totalW,height:totalH}};
+}
+function holeCutter(h,backplaneThickness){const thick=Math.max(1,+backplaneThickness||+$('backplaneThickness').value||3),radius=Math.max(1,(+h.diameter||4)/2),g=new THREE.CylinderGeometry(radius,radius,thick+1.2,32,1,false);g.rotateX(Math.PI/2);g.translate(h.x,h.y,-thick/2);return g;}
+function addRearWireRoutes(back){
+ if(!back.thickness||!wireRoutes.length)return;const minX=back.bounds.minX,maxX=back.bounds.maxX,minY=back.bounds.minY,maxY=back.bounds.maxY,seamX=[...new Set(back.tiles.map(t=>t.x0))].filter(x=>x>minX+.05&&x<maxX-.05),seamY=[...new Set(back.tiles.map(t=>t.y0))].filter(y=>y>minY+.05&&y<maxY-.05);let crossed=false;
+ for(const route of wireRoutes)for(let i=1;i<route.points.length;i++){const a=route.points[i-1],b=route.points[i];if(seamX.some(x=>(a.x<x&&b.x>x)||(a.x>x&&b.x<x))||seamY.some(y=>(a.y<y&&b.y>y)||(a.y>y&&b.y<y)))crossed=true;}
+ const dim=wireChannelDimensions(back.thickness);if(dim.depth<dim.requestedDepth-.01)pendingWarnings.push('Rear channel depth limited to '+dim.depth.toFixed(2)+' mm to preserve at least '+dim.frontSkin.toFixed(1)+' mm of front material.');
+ if(crossed)pendingWarnings.push('Rear wiring channels cross one or more tile seams. Channel guards are split at tile boundaries for separate printing.');
+}
+
+
+function clipSegmentToRect(a,b,minX,maxX,minY,maxY){
+ const dx=b.x-a.x,dy=b.y-a.y,p=[-dx,dx,-dy,dy],q=[a.x-minX,maxX-a.x,a.y-minY,maxY-a.y];let t0=0,t1=1;
+ for(let i=0;i<4;i++){if(Math.abs(p[i])<1e-10){if(q[i]<0)return null;continue;}const r=q[i]/p[i];if(p[i]<0)t0=Math.max(t0,r);else t1=Math.min(t1,r);if(t0>t1)return null;}
+ return [{x:a.x+t0*dx,y:a.y+t0*dy},{x:a.x+t1*dx,y:a.y+t1*dy}];
+}
+function segmentPolygonBreaks(a,b,poly){
+ const dx=b.x-a.x,dy=b.y-a.y,out=[];
+ for(let i=0;i<poly.length;i++){const c=poly[i],d=poly[(i+1)%poly.length],ex=d[0]-c[0],ey=d[1]-c[1],den=dx*ey-dy*ex;if(Math.abs(den)<1e-10)continue;const t=((c[0]-a.x)*ey-(c[1]-a.y)*ex)/den,u=((c[0]-a.x)*dy-(c[1]-a.y)*dx)/den;if(t>1e-7&&t<1-1e-7&&u>=-1e-7&&u<=1+1e-7)out.push(t);}
+ return out;
+}
+function clipRouteToTile(points,tile){
+ const gap=.35,regions=tile.regions||[{outer:tile.outline||[[tile.x0,tile.y0],[tile.x0+tile.w,tile.y0],[tile.x0+tile.w,tile.y0+tile.h],[tile.x0,tile.y0+tile.h]],holes:tile.holes||[]}],boundaries=regions.flatMap(r=>[r.outer,...(r.holes||[])]),contains=(x,y)=>regions.some(r=>pointInPolygon2D(x,y,r.outer)&&!(r.holes||[]).some(poly=>pointInPolygon2D(x,y,poly))),parts=[];let current=null;
+ const push=(a,b)=>{if(Math.hypot(a.x-b.x,a.y-b.y)<.05)return;if(current&&Math.hypot(current.at(-1).x-a.x,current.at(-1).y-a.y)<.08)current.push(b);else{current=[a,b];parts.push(current);}};
+ for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],seg=clipSegmentToRect(a,b,tile.x0+gap,tile.x0+tile.w-gap,tile.y0+gap,tile.y0+tile.h-gap);if(!seg){current=null;continue;}const s=seg[0],e=seg[1],dx=e.x-s.x,dy=e.y-s.y,ts=[0,...boundaries.flatMap(poly=>segmentPolygonBreaks(s,e,poly)),1].sort((x,y)=>x-y);let used=false;
+  for(let k=1;k<ts.length;k++){const t0=ts[k-1],t1=ts[k],mid=(t0+t1)/2,mx=s.x+dx*mid,my=s.y+dy*mid;if(!contains(mx,my)){current=null;continue;}const p0={x:s.x+dx*t0,y:s.y+dy*t0},p1={x:s.x+dx*t1,y:s.y+dy*t1};push(p0,p1);used=true;}
+  if(!used)current=null;
+ }
+ return parts.filter(p=>p.length>1);
+}
+function addWireChannelGuards(back){
+ if(!guardRoot)return;disposeGroup(guardRoot);if(!$('generateWireGuards').checked||!back.thickness||!wireRoutes.length){updateWireGuardUI();return;}
+ const dim=wireChannelDimensions(back.thickness);let count=0;
+ for(let ri=0;ri<wireRoutes.length;ri++)for(const tile of back.tiles)for(const points of clipRouteToTile(wireRoutes[ri].points,tile)){
+  if(points.reduce((len,p,i)=>i?len+Math.hypot(p.x-points[i-1].x,p.y-points[i-1].y):0,0)<4)continue;
+  const g=sweepGeometry(points.map(p=>new THREE.Vector2(p.x,p.y)),wireGuardProfile(dim),false,true);g.translate(0,0,-back.thickness);
+  const mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:'#d2a878',metalness:.12,roughness:.7,side:THREE.DoubleSide}));
+  mesh.name='Dovetail wire channel guard '+(++count);mesh.userData={kind:'wire-channel-guard',routeIndex:ri,tileId:tile.id};guardRoot.add(mesh);
+ }
+ updateWireGuardUI();
+}
+function updateWireGuardUI(){
+ const button=$('downloadGuards'),readout=$('wireGuardReadout');if(!button)return;
+ const enabled=$('generateWireGuards').checked,available=!!guardRoot?.children.length;button.hidden=!enabled;refreshExportButtons();
+ if(readout){readout.hidden=!enabled;readout.textContent=available?guardRoot.children.length+' removable dovetail guard section(s) generated. Download separately from the backplane.':wireRoutes.length?'No printable guard sections were generated for the current routes.':'Finish a rear wire route to generate printable guard sections.';}
+}
+function wireOverlayZ(){return wireBackZ-.55;}
+function refreshWireOverlay(){
+ // Lightweight overlay just behind the plate: saved routes, the route being drawn, its rubber-band segment and hole markers.
+ if(!wireRoot)return;disposeGroup(wireRoot);wirePreview=null;const z=wireOverlayZ(),line=(pts,material)=>{const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(p.x,p.y,z))),material);l.computeLineDistances();wireRoot.add(l);return l;};
+ for(const r of wireRoutes)if(r.points.length>1)line(r.points,new THREE.LineDashedMaterial({color:0xe34234,dashSize:4,gapSize:2}));
+ if(wireDraft.length>1)line(wireDraft,new THREE.LineBasicMaterial({color:0xffb0a4}));
+ for(const p of wireDraft){const dot=new THREE.Mesh(new THREE.CircleGeometry(1.6,16),new THREE.MeshBasicMaterial({color:0xffb0a4,side:THREE.DoubleSide}));dot.position.set(p.x,p.y,z);wireRoot.add(dot);}
+ for(const h of wireHoles){const ring=new THREE.Mesh(new THREE.RingGeometry(Math.max(.5,h.diameter/2-.6),h.diameter/2+.6,28),new THREE.MeshBasicMaterial({color:h.validationError?0xff334f:0x42d6a4,side:THREE.DoubleSide}));ring.position.set(h.x,h.y,z);wireRoot.add(ring);}
+ if(wireMode==='route'&&wireDraft.length){const p=wireDraft.at(-1);wirePreview=line([p,p],new THREE.LineDashedMaterial({color:0xffffff,dashSize:3,gapSize:2}));}
+}
+function wirePointFromEvent(event){const p=planePointFromPointer(event,wireBackZ);return p?{x:p.x,y:p.y}:null;}
+function snapWirePoint(prev,p){const dx=p.x-prev.x,dy=p.y-prev.y,l=Math.hypot(dx,dy),a=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4;return {x:prev.x+Math.cos(a)*l,y:prev.y+Math.sin(a)*l};}
+function refreshWireUI(){if(!$('wireModeStatus'))return;$('wireModeStatus').textContent=wireMode==='route'?'Route tool on (back view): click to add points · double-click or Enter finishes · Shift snaps to 45° · Esc cancels.':wireMode==='hole'?'Hole tool on (back view): click to place pass-through holes · Esc or the tool button returns to your view.':'Wire tools are off.';$('markWireRoute').classList.toggle('active',wireMode==='route');$('markWireHole').classList.toggle('active',wireMode==='hole');$('wirePointCount').textContent=wireDraft.length+' draft point(s) · '+wireRoutes.length+' saved route(s) · '+wireHoles.length+' pass-through hole(s)';}
+function showBackView(){
+ // Look straight at the back of the sign (orbit locked) so clicks land where the wiring will be printed.
+ if(wireView)return;const box=new THREE.Box3().setFromObject(modelRoot);if(box.isEmpty())return;const c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3()),t=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),d=Math.max(s.x/camera.aspect,s.y)/(2*t)*1.15+s.z;
+ wireView={position:camera.position.clone(),target:controls.target.clone(),up:camera.up.clone()};controls.enableDamping=false;controls.update();controls.enabled=false;camera.up.set(0,1,0);camera.position.set(c.x,c.y,c.z-d);controls.target.copy(c);camera.lookAt(c);controls.update();
+}
+function restoreView(){if(!wireView)return;camera.up.copy(wireView.up);camera.position.copy(wireView.position);controls.target.copy(wireView.target);wireView=null;controls.enableDamping=true;controls.enabled=!letterDragState;controls.update();}
+function enterWireMode(mode){if(wireMode===mode){exitWireMode();return;}if(!modelRoot.children.length){setStatus('Build the sign first, then add wiring.',true);return;}if(wireMode==='route'&&wireDraft.length>=2)finishWireRoute();else wireDraft=[];selectedLetterGroups.clear();refreshLetterSelection(false);wireMode=mode;showBackView();refreshWireOverlay();refreshRearGhost();refreshWireUI();setStatus(mode==='route'?'Back view: click to add route points. Double-click or Enter finishes, Shift snaps to 45°, Esc cancels.':'Back view: click where a wire should pass through. Esc or the tool button returns to your view.');}
+function exitWireMode(){wireMode='';wireDraft=[];restoreView();refreshWireOverlay();refreshRearGhost();refreshWireUI();setStatus('Wire tools off.');}
+function finishWireRoute(){if(wireDraft.length<2){setStatus('A wire route needs at least two points.',true);return;}wireRoutes.push({points:wireDraft.map(p=>({x:p.x,y:p.y}))});wireHistory.push('route');wireDraft=[];refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild();noteAction('Route saved. Click to start another, or press Esc to return to your view.');}
+function undoWireEdit(){if(wireMode==='route'&&wireDraft.length){wireDraft.pop();refreshWireOverlay();refreshWireUI();return;}const last=wireHistory.pop();if(last==='route'&&wireRoutes.length)wireRoutes.pop();else if(wireHoles.length)wireHoles.pop();else if(wireRoutes.length)wireRoutes.pop();else return;refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild(400);}
+function clearWireEdits(){wireRoutes=[];wireDraft=[];wireHoles=[];wireHistory=[];refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild();}
+function handleWireCanvasClick(e){if(!wireMode)return false;if(e.detail>1)return true;let p=wirePointFromEvent(e);if(!p)return true;if(wireMode==='route'){if(e.shiftKey&&wireDraft.length)p=snapWirePoint(wireDraft.at(-1),p);wireDraft.push(p);refreshWireOverlay();refreshWireUI();}else{wireHoles.push({id:'H'+(wireHoles.length+1),x:p.x,y:p.y,diameter:Math.max(2,+$('wireHoleDiameter').value||4),validationError:''});wireHistory.push('hole');refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild(600);}return true;}
+function updateWirePreview(e){if(wireMode!=='route'||!wirePreview||!wireDraft.length)return;let p=wirePointFromEvent(e);if(!p)return;if(e.shiftKey)p=snapWirePoint(wireDraft.at(-1),p);const a=wirePreview.geometry.attributes.position;a.setXYZ(1,p.x,p.y,wireOverlayZ());a.needsUpdate=true;wirePreview.geometry.computeBoundingSphere();wirePreview.computeLineDistances();}
+function addMounts(b,back){
+ const style=$('mountStyle').value;if(style==='none'||!back.thickness)return;const t=back.thickness,w=b.width;
+ function ringShape(ro,ri){const s=new THREE.Shape();s.absarc(0,0,ro,0,Math.PI*2,false);const hole=new THREE.Path();hole.absarc(0,0,ri,0,Math.PI*2,true);s.holes.push(hole);return s;}
+ function addPlate(x,y,label,ring,eyeletIndex=null,eyeletId=null){
+  const shape=ring?ringShape(7,3.2):roundedRect(28,30,3);
+  if(!ring){const hole=new THREE.Path();hole.absarc(0,5,4,0,Math.PI*2,true);shape.holes.push(hole);const slot=new THREE.Path();slot.moveTo(-1.7,8);slot.lineTo(-1.7,13);slot.lineTo(1.7,13);slot.lineTo(1.7,8);slot.closePath();shape.holes.push(slot);}
+  const geo=new THREE.ExtrudeGeometry(shape,{depth:3,bevelEnabled:false,curveSegments:16});
+  if(ring){geo.translate(0,0,-t-2.8);const mesh=addMesh(geo,{name:label,color:'#b6becb',userData:{kind:'mount',mountType:'eyelet',eyeletIndex,eyeletId}});mesh.position.set(x,y,0);return mesh;}
+  geo.translate(x,y,-t-2.8);return addMesh(geo,{name:label,color:'#b6becb',userData:{kind:'mount'}});
+ }
+ /* Slide a part from its preferred spot toward the plate centre until it is on the plate with enough edge clearance (round, hexagon, shield and custom plates have no corners at the bounding box). */
+  const settle=(x,y,clearance,label)=>{const cx=(b.minX+b.maxX)/2,cy=(b.minY+b.maxY)/2;for(let k=0;k<=40;k++){const px=x+(cx-x)*k/40,py=y+(cy-y)*k/40;if(isBackplanePoint(px,py)&&mountEdgeClearance(px,py)>=clearance)return [px,py];}buildValidationErrors.push(label+' does not fit on this backplane with '+clearance+' mm of edge clearance. Use a larger backplane or another mounting option.');return null;};
+if(style==='keyholes'){for(const [x,y,n] of [[b.minX+w*.28,b.maxY-27,'Keyhole tab 1'],[b.minX+w*.72,b.maxY-27,'Keyhole tab 2']]){const q=settle(x,y,15,n);if(q)addPlate(q[0],q[1],n,false);}}
+ if(style==='eyelets'){for(const p of eyeletPointsForBounds(b))if(mountPointFits(p.x,p.y,new Set([p.id])))addPlate(p.x,p.y,'Hanging eyelet '+p.id,true,p.index,p.id);updateEyeletWarning();refreshMountSelection();}
+ if(style==='posts'){const pos=[[b.minX+18,b.minY+18],[b.maxX-18,b.minY+18],[b.minX+18,b.maxY-18],[b.maxX-18,b.maxY-18]];for(let i=0;i<pos.length;i++){const q=settle(pos[i][0],pos[i][1],8,'Wall standoff '+(i+1));if(!q)continue;const g=new THREE.CylinderGeometry(5,5,14,32);g.rotateX(Math.PI/2);g.translate(q[0],q[1],-t-7);addMesh(g,{name:'Wall standoff '+(i+1),color:'#b6becb',userData:{kind:'mount'}});}}
+}
+async function buildGeometryUnsafe(){if(!sourceData)throw Error('Upload an SVG or build text first.');buildValidationErrors=[];pendingWarnings=[];disposeGroup(modelRoot);disposeGroup(idPreviewRoot);disposeGroup(wireGhostRoot);disposeGroup(guardRoot);lineChannels=null;disposeGroup(edgeRoot);disposeGroup(guideRoot);selectedHelper=null;$('helperBar').hidden=true;const paths=sourceData.paths.map(p=>({points:p.points.map(v=>v.clone()),closed:p.closed,pathIndex:p.pathIndex,subIndex:p.subIndex,filled:p.filled,groupId:String(p.groupId??('path-'+p.pathIndex)),groupLabel:p.groupLabel||('Path '+(p.pathIndex+1)),isCenterline:!!p.isCenterline}));const displayPaths=paths.map(p=>{const o=letterOffsets.get(p.groupId)||{x:0,y:0};return {...p,points:p.points.map(v=>new THREE.Vector2(v.x+o.x,v.y+o.y))};});rearGhostPaths=displayPaths;rearGhostWidths={inner:Math.max(2,+$('ledWidth').value||9),outer:Math.max(2,+$('ledWidth').value||9)+2*Math.max(.8,+$('wallThickness').value||2)};const all=displayPaths.flatMap(p=>p.points);if(!all.length)throw Error('No centerline paths to model.');const xs=all.map(p=>p.x),ys=all.map(p=>p.y),b={minX:minOf(xs),maxX:maxOf(xs),minY:minOf(ys),maxY:maxOf(ys)};b.width=b.maxX-b.minX;b.height=b.maxY-b.minY;currentBounds={...b};const wallT=Math.max(.8,+$('wallThickness').value||2),back=await addBackplane(b,displayPaths,(Math.max(2,+$('ledWidth').value||9)+2*wallT)/2),wallH=Math.max(3,+$('wallHeight').value||18),floorT=Math.max(.8,+$('floorThickness').value||2),style=$('buildStyle').value;let wallIndex=0,overlapNote='';if(style==='letters'){const openPaths=paths.filter(p=>!p.closed).length;if(openPaths)pendingWarnings.push(openPaths===paths.length?'None of the '+openPaths+' paths is closed, so no channel walls were built in "Channel letters" mode. Set Construction to "LED channel along lines".':openPaths+' open path(s) (strokes or centerlines) have no walls in "Channel letters" mode. Set Construction to "LED channel along lines" to build channels along them.');if($('closedBack').checked){for(let pi=0;pi<sourceData.parsed.paths.length;pi++){const sourcePath=sourceData.parsed.paths[pi];if(sourcePath.userData?.style?.fill==='none')continue;const meta=svgPathMeta(sourcePath,pi);for(const sh of SVGLoader.createShapes(sourcePath)){const g=shapeGeo(sh,floorT,-.03,sourceData.rawBounds,sourceData.scale);addMesh(g,{name:'Letter floor — '+meta.groupLabel,color:'#5f6b7e',userData:{kind:'floor',groupId:meta.groupId,groupLabel:meta.groupLabel}});}}}for(const path of paths){if(!path.closed)continue;const id=wallIndex++,inner=Math.max(2,+$('ledWidth').value||9),outer=inner+2*wallT,profile=[[-outer/2,0],[outer/2,0],[outer/2,wallH],[inner/2,wallH],[inner/2,floorT],[-inner/2,floorT],[-inner/2,wallH],[-outer/2,wallH]],g=sweepGeometry(path.points,profile,true,false);addMesh(g,{name:'LED-sized letter channel '+id,userData:{kind:'wall',wallIndex:id,groupId:path.groupId,groupLabel:path.groupLabel,ledProfile:$('ledProduct').value,insideWidth:inner}});if($('ledgeEnabled').checked){const s=area(path.points)>=0?1:-1,dist=Math.max(0,numOr('ledgeDistance',3)),lw=Math.max(.5,+$('ledgeWidth').value||3),lh=Math.max(.5,+$('ledgeHeight').value||2),z=Math.max(0,wallH-dist-lh),a=Math.max(20,Math.min(80,+$('supportAngle').value||45))*Math.PI/180,prof=[[0,z],[s*lw,z],[s*lw,z+lh],[s*lw*.72,z+lh],[0,z+lh+Math.min(lw*.5,Math.tan(a)*lw*.5)]],hg=sweepGeometry(path.points,prof,true,false),vis=helperVisibility.get(id)!==false,h=addMesh(hg,{name:'Face-plate ledge '+id,color:'#a6afbd',userData:{kind:'helper',helperId:id,wallIndex:id,groupId:path.groupId,groupLabel:path.groupLabel}});h.visible=vis;}}}else{const inner=Math.max(2,+$('ledWidth').value||9),outer=inner+2*wallT,groups=new Map();for(const p of paths){if(!groups.has(p.groupId))groups.set(p.groupId,{label:p.groupLabel,paths:[]});groups.get(p.groupId).paths.push(p);}for(const g of groups.values()){g.geometry=channelGeometry(g.paths,inner,outer,wallH,floorT);g.fp=channelFootprint(g.paths,outer);}lineChannels={inner,outer,wallH,floorT,groups};overlapNote=placeLineChannels();}addRearWireRoutes(back);if(back.thickness){try{addMounts(back.bounds,back);}catch(error){buildValidationErrors.push('Mounting hardware could not be generated: '+error.message);setStatus('Mounting hardware could not be generated: '+error.message+'. STL export is blocked until corrected.',true);}}addWireChannelGuards(back);const len=paths.reduce((s,p)=>s+pathLength(p.points,p.closed),0);$('pathLength').textContent=len.toFixed(1)+' mm';const printBounds=back.thickness?back.bounds:b;$('artSize').textContent=dualMeasure(printBounds.width)+' × '+dualMeasure(printBounds.height);$('targetSizeReadout').textContent='Final print: '+dualMeasure(printBounds.width)+' × '+dualMeasure(printBounds.height)+' including backplane.'+overlapNote;$('partCount').textContent=modelRoot.children.length+(guardRoot?.children.length||0);const diff=(+$('ledgeDistance').value||0)-(+$('diffuserThickness').value||2);$('diffuserFit').textContent=Math.abs(diff)<.25?'Flush':diff>0?diff.toFixed(1)+' mm recessed':Math.abs(diff).toFixed(1)+' mm proud';$('fitReadout').textContent=Math.abs(diff)<.25?'Fit: diffuser finishes flush with the top rim.':diff>0?'Fit: diffuser sits '+diff.toFixed(1)+' mm below the top rim.':'Fit warning: diffuser sits '+Math.abs(diff).toFixed(1)+' mm above the top rim.';addGuide(b,wallH+1);wireBackZ=-back.thickness;refreshWireOverlay();refreshRearGhost();refreshWireUI();refreshLetterSelection();updateEyeletWarning();updateWireGuardUI();if(fitOnBuild){fitCamera();fitOnBuild=false;}$('emptyState').hidden=true;$('modelName').textContent=sourceLabel+' · '+(style==='letters'?'Channel letters':'LED channel along lines');setBuildWarnings([...sourceNotes,...pendingWarnings]);setManufacturingErrors(buildValidationErrors);}
+async function buildGeometry(){
+ const roots=[modelRoot,idPreviewRoot,wireGhostRoot,guardRoot,edgeRoot,guideRoot],parked=roots.map(root=>({root,children:[...root.children]}));
+ for(const item of parked)for(const child of item.children)item.root.remove(child);
+ const snapshot={lineChannels,currentBounds:currentBounds?{...currentBounds}:null,backplaneBounds:backplaneBounds?{...backplaneBounds}:null,backplaneBoundary:backplaneBoundary.map(p=>p.slice()),backplaneTileRegions:backplaneTileRegions.map(poly=>poly.map(p=>p.slice())),backplaneHoleRegions:backplaneHoleRegions.map(poly=>poly.map(p=>p.slice())),backplaneRegions:backplaneRegions.map(r=>({outer:r.outer.map(p=>p.slice()),holes:r.holes.map(h=>h.map(p=>p.slice()))})),customBackplaneWorld:customBackplaneWorld?.map(r=>({outer:r.outer.map(p=>p.slice()),holes:r.holes.map(h=>h.map(p=>p.slice()))}))||null,rearGhostPaths,rearGhostWidths:{...rearGhostWidths},wireBackZ,selectedHelper,modelName:$('modelName').textContent,pathLength:$('pathLength').textContent,artSize:$('artSize').textContent,partCount:$('partCount').textContent,targetSize:$('targetSizeReadout').textContent,emptyHidden:$('emptyState').hidden,manufacturingErrors:manufacturingErrors.slice(),buildWarnings:buildWarnings.slice()};
+ lineChannels=null;
  try{
-  if(!lines.length)throw Error('No lettering paths');
-  const o=opts(),bx=+$('bedW').value,by=+$('bedH').value;
-  if(!Number.isFinite(bx)||!Number.isFinite(by)||bx<50||by<50)throw Error('Enter valid build plate dimensions.');
-  if(o.height<=o.floor)throw Error('Channel height must exceed floor thickness.');
-  const extent=Math.max(o.outer/2,(o.outer+2*o.pad)/2)+2;
-  const split=splitForBed(allPaths(),bx,by,extent),files=[],pieces=split.pieces;
-  if(!pieces.length)throw Error('Nothing to export.');
-  $('generate').disabled=true;status(`Preparing ${pieces.length} printable path sections…`);await nextFrame();
-  for(let i=0;i<pieces.length;i++){
-   const {path,tileX,tileY}=pieces[i],name=`tile-${tileX}-${tileY}-stroke-${String(i+1).padStart(3,'0')}`;
-   const channel=swept(path,channelProfile(o));
-   files.push([`channels/${name}.stl`,stlBinary(channel)]);
-   if($('backing').checked)files.push([`supports/${name}.stl`,stlBinary(swept(path,solidProfile(o.outer+2*o.pad,o.backingHeight)))]);
-   if(i%3===0){status(`Generating ${i+1} / ${pieces.length} printable sections…`);await nextFrame();}
+  await buildGeometryUnsafe();
+  for(const item of parked){const old=new THREE.Group();for(const child of item.children)old.add(child);disposeGroup(old);}
+ }catch(error){
+  for(const root of roots)disposeGroup(root);
+  for(const item of parked)for(const child of item.children)item.root.add(child);
+  lineChannels=snapshot.lineChannels;currentBounds=snapshot.currentBounds;backplaneBounds=snapshot.backplaneBounds;backplaneBoundary=snapshot.backplaneBoundary;backplaneTileRegions=snapshot.backplaneTileRegions;backplaneHoleRegions=snapshot.backplaneHoleRegions;backplaneRegions=snapshot.backplaneRegions;customBackplaneWorld=snapshot.customBackplaneWorld;rearGhostPaths=snapshot.rearGhostPaths;rearGhostWidths=snapshot.rearGhostWidths;wireBackZ=snapshot.wireBackZ;selectedHelper=snapshot.selectedHelper;
+  $('modelName').textContent=snapshot.modelName;$('pathLength').textContent=snapshot.pathLength;$('artSize').textContent=snapshot.artSize;$('partCount').textContent=snapshot.partCount;$('targetSizeReadout').textContent=snapshot.targetSize;$('emptyState').hidden=snapshot.emptyHidden;
+  refreshWireOverlay();refreshRearGhost();refreshLetterSelection();updateEyeletWarning();setBuildWarnings(snapshot.buildWarnings);setManufacturingErrors([...snapshot.manufacturingErrors,'The latest geometry update failed: '+error.message]);
+  throw error;
+ }
+}
+function addGuide(b,z){const pad=8,cy=(b.minY+b.maxY)/2,g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(b.minX-pad,cy,z),new THREE.Vector3(b.maxX+pad,cy,z)]),l=new THREE.Line(g,new THREE.LineDashedMaterial({color:0xe34234,dashSize:5,gapSize:3,transparent:true,opacity:.9}));l.computeLineDistances();guideRoot.add(l);}
+function rebuildEdges(){disposeGroup(edgeRoot);if(!$('featureEdges').checked)return;modelRoot.traverse(o=>{if(!o.isMesh||!o.geometry)return;const g=new THREE.EdgesGeometry(o.geometry,24),l=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:'#202530',transparent:true,opacity:.9}));l.position.copy(o.position);l.rotation.copy(o.rotation);l.scale.copy(o.scale);edgeRoot.add(l);});}
+function setViewActive(id){for(const b of ['frontView','topView','isoView'])$(b)?.classList.toggle('active',b===id);}
+function fitCamera(){if(wireMode)exitWireMode();setViewActive('isoView');const box=new THREE.Box3().setFromObject(modelRoot);if(box.isEmpty())return;const s=box.getSize(new THREE.Vector3()),c=box.getCenter(new THREE.Vector3()),max=Math.max(s.x,s.y,s.z,25),d=max*1.65;controls.target.copy(c);camera.position.set(c.x+d,c.y-d*1.3,c.z+d*.95);camera.near=Math.max(.1,max/2000);camera.far=max*40;camera.updateProjectionMatrix();controls.update();}
+function setCamera(which){if(wireMode)exitWireMode();setViewActive(which==='front'?'frontView':which==='top'?'topView':'isoView');const box=new THREE.Box3().setFromObject(modelRoot);if(box.isEmpty())return;const s=box.getSize(new THREE.Vector3()),c=box.getCenter(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,30)*2;if(which==='front')camera.position.set(c.x,c.y-d,c.z+s.z*.2);else if(which==='top')camera.position.set(c.x,c.y,c.z+d);else{fitCamera();return;}controls.target.copy(c);controls.update();}
+async function parseSvgText(txt,label,notes=[]){const next=normalizeSvg(svgLoader.parse(txt));/* validate first: a bad file must not change the current design */if(wireMode)exitWireMode();fitOnBuild=true;sourceSvgText=txt;sourceLabel=label;sourceData=next;sourceNotes=notes;letterOffsets.clear();selectedLetterGroups.clear();helperVisibility.clear();await buildGeometry();updateLetterSelectionUI();setStatus(withWarnings('Model generated locally. Inspect dimensions and fit before exporting.'));}
+async function loadOpenType(){if(window.__ledsignOpenType)return window.__ledsignOpenType;const m=await importFresh('./vendor/opentype.module.js');window.__ledsignOpenType=m.default||m;return window.__ledsignOpenType;}
+async function getFont(){if(parsedFont)return parsedFont;const c=$('fontChoice').value;if(c==='custom'){if(!fontBuffer)throw Error('Choose a TTF, OTF or WOFF file first.');const ot=await loadOpenType();parsedFont=ot.parse(fontBuffer);return parsedFont;}setStatus('Loading font outlines in the browser…');const r=await fetch(FONT_URLS[c]);if(!r.ok)throw Error('Could not load built-in font ('+r.status+'). Try uploading a TTF/OTF font.');const buf=await r.arrayBuffer(),ot=await loadOpenType();parsedFont=ot.parse(buf);return parsedFont;}
+async function traceTextCenterlineSvg(svgText){
+ const url=URL.createObjectURL(new Blob([svgText],{type:'image/svg+xml'}));
+ try{
+  const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Could not rasterize the font outlines for centerline tracing.'));im.src=url;});
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;if(!iw||!ih)throw Error('Font artwork has no measurable raster size.');
+  const scale=Math.min(4,1200/iw,900/ih),pad=8,w=Math.ceil(iw*scale)+pad*2,h=Math.ceil(ih*scale)+pad*2,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Canvas 2D is unavailable for font tracing.');
+  ctx.clearRect(0,0,w,h);ctx.drawImage(img,pad,pad,iw*scale,ih*scale);
+  const rgba=ctx.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)mask[i]=rgba[i*4+3]>100?1:0;const edt=new Float32Array(w*h);for(let i=0;i<edt.length;i++)edt[i]=mask[i]?1e9:0;for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;if(mask[i])edt[i]=Math.min(edt[i],edt[i-1]+1,edt[i-w]+1,edt[i-w-1]+1.414,edt[i-w+1]+1.414);}for(let y=h-2;y>0;y--)for(let x=w-2;x>0;x--){const i=y*w+x;if(mask[i])edt[i]=Math.min(edt[i],edt[i+1]+1,edt[i+w]+1,edt[i+w+1]+1.414,edt[i+w-1]+1.414);}
+  const comp=new Int32Array(w*h).fill(-1),blobs=[];/* connected ink blobs, so a dot that thins away to nothing can still be kept */
+   for(let i0=0;i0<mask.length;i0++){if(!mask[i0]||comp[i0]>=0)continue;const id=blobs.length,stack=[i0];comp[i0]=id;let n=0,sx=0,sy=0;while(stack.length){const j=stack.pop(),x=j%w,y=(j/w)|0;n++;sx+=x;sy+=y;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;const k=ny*w+nx;if(mask[k]&&comp[k]<0){comp[k]=id;stack.push(k);}}}blobs.push({n,cx:sx/n,cy:sy/n,hasPath:false});}
+   const neighbors=(i)=>skeletonNeighbors(mask,w,h,i);
+  for(let iter=0;iter<60;iter++){
+   let changed=false;
+   for(let phase=0;phase<2;phase++){
+    const remove=[];
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+     const i=y*w+x;if(!mask[i])continue;const ns=[mask[i-w],mask[i-w+1],mask[i+1],mask[i+w+1],mask[i+w],mask[i+w-1],mask[i-1],mask[i-w-1]],sum=ns.reduce((a,b)=>a+b,0);
+     if(sum<2||sum>6)continue;let transitions=0;for(let k=0;k<8;k++)if(ns[k]===0&&ns[(k+1)%8]===1)transitions++;if(transitions!==1)continue;
+     const p2=ns[0],p4=ns[2],p6=ns[4],p8=ns[6];
+     if(phase===0){if(p2*p4*p6!==0||p4*p6*p8!==0)continue;}
+     else if(p2*p4*p8!==0||p2*p6*p8!==0)continue;
+     remove.push(i);
+    }
+    if(remove.length){changed=true;for(const i of remove)mask[i]=0;}
+   }
+   if(!changed)break;
   }
-  const wireWidth=+$('wireWidth').value,wireWall=+$('wireWall').value,wireDepth=+$('wireDepth').value;
-  if(wireRoutes.length && (!Number.isFinite(wireWidth)||wireWidth<1||!Number.isFinite(wireWall)||wireWall<1||!Number.isFinite(wireDepth)||wireDepth<=wireWall))throw Error('Rear raceway dimensions are invalid. Depth must exceed wall thickness.');
-  if(wireDraft.length)throw Error('Finish or undo the unfinished rear wire route before exporting.');
-  if(wireRoutes.length){const wireSplit=splitForBed(wireRoutes,bx,by,(wireWidth+wireWall*2)/2+2);for(let i=0;i<wireSplit.pieces.length;i++){const part=wireSplit.pieces[i];files.push([`rear-wire-raceways/route-${String(i+1).padStart(3,'0')}-tile-${part.tileX}-${part.tileY}.stl`,stlBinary(swept(part.path,rearRacewayProfile(wireWidth,wireWall,wireDepth)))]);}}
-  const note=`LEDSign STL parts; units millimeters.\nBuild plate ${bx} x ${by} mm; ${split.cols} columns x ${split.rows} rows.\nEach file is a separate path piece positioned within its print tile.\nSegments have flat unjoined ends: NO snap locks or dovetails. Use a mounting panel or a separately designed positive locking mechanism.\nDo not print until slicer checks verify bounding dimensions, manifold geometry, intersections, and LED fit.\nOutput channels are U-shaped, not manufacturer validated.\nRear wire raceways are separate OPEN-BACK U-shaped pieces, NOT boolean-cut into the contour supports. Attach to the rear with suitable bonding/fasteners and verify safe wire bend radius, insulation, strain relief, heat, wire gauge and power supply capacity. Routes ending on LED strokes need drilled/formed feed-throughs that are NOT automatically modeled. Do not run bare or exposed conductors.\n`;
-  files.push(['README-PRINTING.txt',note]);
-  downloadBlob=zip(files);$('download').disabled=false;
-  status(`Generated ${files.length-1} STL models; ${split.cols} x ${split.rows} build-bed tiles. Download and inspect in your slicer. No locking joints included.`);
- }catch(e){status('Generation failed: '+e.message,true);}finally{$('generate').disabled=false;}
+  const degree=new Uint8Array(w*h);for(let i=0;i<mask.length;i++)if(mask[i])degree[i]=neighbors(i).filter(j=>j>=0&&mask[j]).length;
+  const used=new Set(),edgeKey=(a,b)=>a<b?a*w*h+b:b*w*h+a,polylines=[];
+  function trace(start,next){
+   const line=[start];let prev=start,cur=next,steps=0;used.add(edgeKey(prev,cur));line.push(cur);
+   while(steps++<mask.length){if(cur===start)break;if(degree[cur]!==2)break;const ns=neighbors(cur).filter(j=>j>=0&&mask[j]&&j!==prev);let nxt=ns.find(j=>!used.has(edgeKey(cur,j)));if(nxt===undefined)break;used.add(edgeKey(cur,nxt));prev=cur;cur=nxt;line.push(cur);}
+   if(line.length>=3)polylines.push(line);
+  }
+  for(let i=0;i<mask.length;i++)if(mask[i]&&degree[i]!==2)for(const n of neighbors(i).filter(j=>j>=0&&mask[j]))if(!used.has(edgeKey(i,n)))trace(i,n);
+  for(let i=0;i<mask.length;i++)if(mask[i])for(const n of neighbors(i).filter(j=>j>=0&&mask[j]))if(!used.has(edgeKey(i,n)))trace(i,n);
+  for(const line of polylines)for(const i of line)if(comp[i]>=0)blobs[comp[i]].hasPath=true;
+   const dots=blobs.filter(b=>!b.hasPath&&b.n>=12).map(b=>[[b.cx-1,b.cy],[b.cx+1,b.cy]]);
+   if(!polylines.length&&!dots.length)throw Error('Centerline thinning did not produce paths. Try a heavier font or disable centerline tracing.');
+  const paths=cleanSkeleton(polylines.map(line=>line.map(i=>[i%w,(i/w)|0])),(x,y)=>edt[Math.round(y)*w+Math.round(x)]||1).map(c=>{const coords=(c.closed?c.pts.concat([c.pts[0]]):c.pts).map(p=>[Math.max(0,Math.min(iw,(p[0]-pad)/scale)),Math.max(0,Math.min(ih,(p[1]-pad)/scale))]);return 'M'+coords.map(p=>p[0].toFixed(3)+' '+p[1].toFixed(3)).join(' L');});const dotPaths=dots.map(d=>'M'+d.map(p=>Math.max(0,Math.min(iw,(p[0]-pad)/scale)).toFixed(3)+' '+Math.max(0,Math.min(ih,(p[1]-pad)/scale)).toFixed(3)).join(' L'));return paths.concat(dotPaths);
+ } finally {URL.revokeObjectURL(url);}
 }
-function download(){if(!downloadBlob)return;const url=URL.createObjectURL(downloadBlob),a=document.createElement('a');a.href=url;a.download='LEDSign-printable-channels.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
-let pointer=null;
-function world(e){const svg=$('preview'),pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return {x:0,y:0};const v=pt.matrixTransform(m.inverse());return {x:(v.x-scene.tx)/scene.scale,y:(v.y-scene.ty)/scene.scale};}
-function alignSelected(axis){
- if(selected<0||!shapes[selected]){status('Select a shape by clicking or dragging it first.',true);return;}
- const pts=lines.flat();if(!pts.length)return;
- const minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));
- const s=shapes[selected];
- if(axis==='left')s.x=minX+s.w/2;
- if(axis==='right')s.x=maxX-s.w/2;
- if(axis==='center')s.x=(minX+maxX)/2;
- if(axis==='top')s.y=minY+s.h/2;
- if(axis==='bottom')s.y=maxY-s.h/2;
- if(axis==='middle')s.y=(minY+maxY)/2;
- invalidate();
+function xmlEscape(value){return String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let textBuildSeq=0;
+async function buildText(){
+ const seq=++textBuildSeq,text=$('signText').value.trim();if(!text)throw Error('Type the text for your sign.');
+ const font=await getFont(),size=100,em=font.unitsPerEm||1000,scale=size/em,lineStep=size*Math.max(1,Math.min(2.5,Number($('lineSpacing').value)||1.4)),glyphs=[],missingChars=new Set();
+ let overallMinX=Infinity,overallMinY=Infinity,overallMaxX=-Infinity,overallMaxY=-Infinity,index=0;
+ const lines=text.split(String.fromCharCode(10));
+ for(let li=0;li<lines.length;li++){let cursor=0,previous=null;const baseline=li*lineStep;
+  for(const ch of Array.from(lines[li])){const glyph=font.charToGlyph(ch);if(previous&&typeof font.getKerningValue==='function'){try{cursor+=font.getKerningValue(previous,glyph)*scale;}catch{}}
+   const path=font.getPath(ch,cursor,baseline,size),bb=path.getBoundingBox();
+   if(!/^\s$/u.test(ch)&&glyph.index===0)missingChars.add(ch);else if(!/^\s$/u.test(ch)&&bb.x2>bb.x1&&bb.y2>bb.y1){glyphs.push({id:String(index++),char:ch,path,bounds:bb});overallMinX=Math.min(overallMinX,bb.x1);overallMinY=Math.min(overallMinY,bb.y1);overallMaxX=Math.max(overallMaxX,bb.x2);overallMaxY=Math.max(overallMaxY,bb.y2);}
+   cursor+=(glyph.advanceWidth||em*.5)*scale;previous=glyph;
+  }
+ }
+ if(!glyphs.length||overallMaxX<=overallMinX||overallMaxY<=overallMinY)throw Error(missingChars.size?'The selected font has no glyphs for: '+[...missingChars].join(' ')+'. Choose another font or upload one that includes them.':'The selected font did not produce visible outlines for this text.');
+  const notes=missingChars.size?['The font has no glyph for '+[...missingChars].join(' ')+', so those characters were left out of the sign.']:[];
+ const width=overallMaxX-overallMinX,height=overallMaxY-overallMinY,svgPaths=[];
+ if($('traceTextCenterline').checked){
+  for(const glyph of glyphs){const bb=glyph.bounds,gw=Math.max(2,bb.x2-bb.x1),gh=Math.max(2,bb.y2-bb.y1);
+   const glyphSvg='<svg xmlns="http://www.w3.org/2000/svg" width="'+gw+'" height="'+gh+'" viewBox="'+bb.x1+' '+bb.y1+' '+gw+' '+gh+'"><path d="'+glyph.path.toPathData(3)+'" fill="#222" fill-rule="nonzero"/></svg>';
+   const centerPaths=await traceTextCenterlineSvg(glyphSvg),tx=bb.x1-overallMinX,ty=bb.y1-overallMinY,escaped=xmlEscape(glyph.char);
+   for(const d of centerPaths)svgPaths.push('<path data-letter-index="'+glyph.id+'" data-letter-char="'+escaped+'" data-centerline="true" d="'+d+'" transform="translate('+tx+' '+ty+')" fill="none" stroke="#111" stroke-width="1"/>');
+  }
+  if(!svgPaths.length)throw Error('Centerline tracing produced no paths. Try a heavier font or disable centerline tracing.');
+  const out='<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'" viewBox="0 0 '+width+' '+height+'">'+svgPaths.join('')+'</svg>';
+  if(seq!==textBuildSeq)return;/* a newer build was started */$('buildStyle').value='line';toggleFields();letterOffsets.clear();selectedLetterGroups.clear();await parseSvgText(out,text,notes);setStatus(withWarnings('Centerline channels generated per letter. Select a glyph to move it; inspect joins and unions before printing.'));
+ }else{
+  for(const glyph of glyphs){const escaped=xmlEscape(glyph.char);svgPaths.push('<path data-letter-index="'+glyph.id+'" data-letter-char="'+escaped+'" d="'+glyph.path.toPathData(3)+'" transform="translate('+(-overallMinX)+' '+(-overallMinY)+')" fill="#222" fill-rule="nonzero"/>');}
+  const out='<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'" viewBox="0 0 '+width+' '+height+'">'+svgPaths.join('')+'</svg>';
+  if(seq!==textBuildSeq)return;letterOffsets.clear();selectedLetterGroups.clear();await parseSvgText(out,text,notes);
+ }
 }
-function wire(){for(const [id,mode] of [['routeStart','start'],['routeEnd','end'],['routeWaypoint','waypoint']])$(id).onclick=()=>{if(mode==='waypoint'&&!wireDraft.length){status('Set route Start first.',true);return;}if(mode==='end'&&!wireDraft.length){status('Set route Start first.',true);return;}wireMode=mode;updateWireUI();};$('routeUndo').onclick=()=>{if(wireDraft.length)wireDraft.pop();else if(wireRoutes.length)wireDraft=wireRoutes.pop().slice(0,-1);wireMode=wireDraft.length?'end':'start';updateWireUI();invalidate();};$('routeDelete').onclick=()=>{if(wireRoutes.length)wireRoutes.splice(selectedWireRoute>=0?selectedWireRoute:wireRoutes.length-1,1);selectedWireRoute=-1;updateWireUI();invalidate();};$('routeClear').onclick=()=>{wireRoutes=[];wireDraft=[];wireMode='';selectedWireRoute=-1;updateWireUI();invalidate();};for(const id of ['wireWidth','wireWall','wireDepth'])$(id).addEventListener('input',invalidate);$('preview').addEventListener('click',e=>{if(drawing){if(e.target.hasAttribute('data-shape')||e.target.hasAttribute('data-resize'))return;draftLed.push(world(e));invalidate();status(`Routing section ${lines.length+1}: ${draftLed.length} points. Click Finish section when complete.`);return;}if(!wireMode)return;try{addWirePoint(world(e));}catch(err){status(err.message,true);}});for(const id of ['text','width'])$(id).addEventListener('input',()=>{if(manualMode&&lines.length){lines=[];draftLed=[];drawing=false;status('Font dimensions changed; previous LED routes cleared to prevent scaling mismatch.');}buildLines();});for(const id of ['led','glow','clearance','wall','floor','channelHeight','padding','plate'])$(id).addEventListener('input',invalidate);$('font').addEventListener('change',()=>{manualMode=$('font').value==='custom';lines=[];draftLed=[];drawing=false;buildLines();});$('fontFile').addEventListener('change',async e=>{try{await uploadFont(e.target.files[0]);customFont=true;}catch(err){status('Font loading error: '+err.message,true);}});$('addShape').onclick=()=>{const s=+$('shapeSize').value||120,r=range();shapes.push({kind:$('shapeType').value,x:r.minX+r.w/2,y:r.minY+r.h/2,w:s,h:s});selected=shapes.length-1;invalidate();};document.querySelectorAll('[data-align]').forEach(b=>b.addEventListener('click',()=>alignSelected(b.dataset.align)));$('removeShape').onclick=()=>{if(selected>=0){shapes.splice(selected,1);selected=-1;invalidate();}};$('fit').onclick=()=>{zoom=1;view();};$('zoomIn').onclick=()=>{zoom=Math.min(5,zoom*1.25);view();};$('zoomOut').onclick=()=>{zoom=Math.max(.2,zoom/1.25);view();};$('preview').addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.2,Math.min(5,zoom*(e.deltaY<0?1.12:.89)));view();},{passive:false});$('preview').addEventListener('pointerdown',e=>{const target=e.target,idx=target.getAttribute('data-shape')??target.getAttribute('data-resize');if(idx===null)return;selected=+idx;pointer={start:world(e),shape:{...shapes[selected]},resize:target.hasAttribute('data-resize')};$('preview').setPointerCapture(e.pointerId);view();});$('preview').addEventListener('pointermove',e=>{if(!pointer||selected<0)return;const v=world(e),s=shapes[selected],dx=v.x-pointer.start.x,dy=v.y-pointer.start.y;if(pointer.resize){s.w=Math.max(15,pointer.shape.w+2*dx);s.h=Math.max(15,pointer.shape.h+2*dy);}else{s.x=pointer.shape.x+dx;s.y=pointer.shape.y+dy;}invalidate();});$('preview').addEventListener('pointerup',()=>pointer=null);$('preview').addEventListener('pointercancel',()=>pointer=null);$('manualBegin').onclick=()=>{if(!uploadedFont||$('font').value!=='custom'){status('Upload a font first.',true);return;}drawing=true;wireMode='';status('Click along the center of one LED strip run. Use several points on curves. Finish each disconnected section separately.');};$('manualFinish').onclick=()=>{if(draftLed.length>=2){lines.push(draftLed.slice());draftLed=[];drawing=false;fontPreviewOnly=false;invalidate();status(`${lines.length} LED section(s) ready for STL. Add another section as needed.`);}else status('Select at least two centerline points before finishing.',true);};$('manualUndo').onclick=()=>{draftLed.pop();invalidate();};$('manualClear').onclick=()=>{lines=[];draftLed=[];drawing=false;invalidate();status('LED paths cleared. Font remains as a reference.');};$('generate').onclick=generate;$('download').onclick=download;$('printer').onchange=()=>{if($('printer').value!=='custom'){const [x,y]=$('printer').value.split(',');$('bedW').value=x;$('bedH').value=y;}invalidate();};for(const id of ['bedW','bedH'])$(id).addEventListener('input',invalidate);}
-window.addEventListener('error',e=>status(`Application error: ${e.message}`,true));
-wire();buildLines();updateWireUI();
+async function sample(){try{setInputTab('text');$('signText').value='LED SIGN';$('traceTextCenterline').checked=true;$('fontChoice').value='roboto';parsedFont=null;$('buildStyle').value='line';await buildText();}catch(e){try{setInputTab('svg');$('buildStyle').value='letters';toggleFields();await parseSvgText(SAMPLE_SVG,'sample.svg');setStatus('Loaded the built-in sample logo because the sample text could not be built: '+e.message,true);}catch(e2){setStatus('Sample failed: '+e2.message,true);}}}
+function setInputTab(tab){activeInput=tab;document.querySelectorAll('[data-input-tab]').forEach(b=>b.classList.toggle('active',b.dataset.inputTab===tab));$('svgPanel').hidden=tab!=='svg';$('textPanel').hidden=tab!=='text';}
+function scheduleRebuild(delay){clearTimeout(buildTimer);buildTimer=setTimeout(async()=>{if(!sourceData||!sourceSvgText)return;try{sourceData=normalizeSvg(svgLoader.parse(sourceSvgText));await buildGeometry();if(manufacturingErrors.length)setStatus('Preview retained. '+manufacturingErrors.length+' manufacturing issue(s) must be corrected before STL export.',true);else setStatus(withWarnings(takeActionNote()||'Parameters updated. STL and GLB export use this preview.'));}catch(e){actionNote='';setManufacturingErrors([...manufacturingErrors,'The latest geometry update failed: '+e.message]);setStatus(e.message+' The last valid preview has been retained; STL export is blocked until corrected.',true);}},typeof delay==='number'?delay:180);}
+async function parseCustomBackplaneFile(file){if(!file)return;try{await parseCustomBackplaneSvg(await file.text(),file.name);}catch(error){setStatus('Custom backplane load failed: '+error.message,true);}}
+function applyLedProfile(){const p=LED_PROFILES[$('ledProduct').value]||LED_PROFILES.custom;if($('ledProduct').value!=='custom'){$('ledPhysicalWidth').value=p.width;$('ledPhysicalHeight').value=p.height;}const recommended=(+$('ledPhysicalHeight').value||2)+2,wall=$('wallHeight'),user=wall.dataset.userValue!==undefined?Number(wall.dataset.userValue):+wall.value;/* remember the user's own value while the profile forces a taller wall, and give it back afterwards */if(user<recommended){if(wall.dataset.userValue===undefined)wall.dataset.userValue=String(user);wall.value=recommended;}else{wall.value=user;delete wall.dataset.userValue;}updateLedChannelWidth();}
+function updateLedChannelWidth(){const p=LED_PROFILES[$('ledProduct').value]||LED_PROFILES.custom,w=Math.max(1,+$('ledPhysicalWidth').value||8),h=Math.max(.5,+$('ledPhysicalHeight').value||2),c=Math.max(0,+$('ledClearance').value||0),inside=Math.round((w+2*c)*4)/4;$('ledWidth').value=String(inside);const wall=+$('wallHeight').value||18,warning=wall<h?' WARNING: wall height '+wall+' mm is below selected LED profile height '+h+' mm.':'';$('ledProfileReadout').textContent=p.label+' · '+p.voltage+' · recommended channel inside width '+inside.toFixed(2)+' mm.'+warning;}
+function toggleFields(){const line=$('buildStyle').value==='line';$('customBackplaneField').hidden=$('backplaneStyle').value!=='custom';$('ledWidthField').hidden=!line;$('floorField').hidden=line||!$('closedBack').checked;$('ledgeEnabled').disabled=line;$('ledgeEnabled').parentElement.style.opacity=line?'.45':'1';$('eyeletHelp').hidden=$('mountStyle').value!=='eyelets';updateEyeletWarning();}
+function getLetterGroups(){const out=new Map();for(const p of sourceData?.paths||[]){const id=String(p.groupId??('path-'+p.pathIndex));if(!out.has(id))out.set(id,p.groupLabel||id);}return out;}
+function updateLetterSelectionUI(){if(!$('letterGroupList'))return;const groups=getLetterGroups(),container=$('letterGroupList');container.replaceChildren();for(const [id,label] of groups){const button=document.createElement('button');button.type='button';button.className=selectedLetterGroups.has(id)?'active':'';button.textContent=label+' · '+id;button.title='Select '+label+' (Shift/Ctrl-click to add)';button.addEventListener('click',e=>{if(e.shiftKey||e.ctrlKey||e.metaKey){if(selectedLetterGroups.has(id))selectedLetterGroups.delete(id);else selectedLetterGroups.add(id);}else{selectedLetterGroups.clear();selectedLetterGroups.add(id);}refreshLetterSelection();});container.append(button);}const selected=[...selectedLetterGroups].map(id=>groups.get(id)||id);$('letterSelectionStatus').textContent=selected.length?'Selected: '+selected.join(', ')+' · drag in the preview or use the arrow keys to move':'Click a letter in the preview to select it.';}
+function refreshLetterSelection(edges=true){for(const mesh of modelRoot?.children||[]){const ids=mesh.userData.memberIds||(mesh.userData.groupId!==undefined?[String(mesh.userData.groupId)]:null);if(!mesh.isMesh||!ids||!mesh.material?.color)continue;if(mesh.userData.originalDisplayColor===undefined)mesh.userData.originalDisplayColor=mesh.material.color.getHex();mesh.material.color.setHex(ids.some(id=>selectedLetterGroups.has(String(id)))?0xe34234:mesh.userData.originalDisplayColor);}updateLetterSelectionUI();if(edges)rebuildEdges();}
+function letterBox(id){const o=letterOffsets.get(id)||{x:0,y:0},b={minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity};for(const p of sourceData?.paths||[])if(String(p.groupId??('path-'+p.pathIndex))===id)for(const v of p.points){b.minX=Math.min(b.minX,v.x+o.x);b.maxX=Math.max(b.maxX,v.x+o.x);b.minY=Math.min(b.minY,v.y+o.y);b.maxY=Math.max(b.maxY,v.y+o.y);}return b;}
+function unionBox(list){return list.reduce((a,b)=>({minX:Math.min(a.minX,b.minX),maxX:Math.max(a.maxX,b.maxX),minY:Math.min(a.minY,b.minY),maxY:Math.max(a.maxY,b.maxY)}),{minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity});}
+function alignDeltas(mode,boxes,frame){
+ // [dx,dy] per selected letter. 'center' aligns each selected glyph's vertical center to the selection's shared horizontal centerline,
+ // preserving every glyph's x coordinate. Edge/middle modes continue to align the selected block against the remaining artwork.
+ if(mode==='center'){const s=unionBox(boxes),targetY=(s.minY+s.maxY)/2;return boxes.map(b=>[0,targetY-(b.minY+b.maxY)/2]);}
+ if(mode==='slope45'){const c=boxes.map(b=>[(b.minX+b.maxX)/2,(b.minY+b.maxY)/2]),first=c.reduce((a,v)=>v[0]<a[0]?v:a,c[0]);return c.map(v=>[0,first[1]+(v[0]-first[0])-v[1]]);}
+ const s=unionBox(boxes),d=mode==='left'?[frame.minX-s.minX,0]:mode==='right'?[frame.maxX-s.maxX,0]:mode==='center'?[0,0]:mode==='top'?[0,frame.maxY-s.maxY]:mode==='bottom'?[0,frame.minY-s.minY]:mode==='middle'?[0,(frame.minY+frame.maxY-s.minY-s.maxY)/2]:[0,0];return boxes.map(()=>d.slice());
+}
+function equalSpacingDeltas(boxes){
+ if(boxes.length<3)return null;
+ const order=boxes.map((b,index)=>({b,index})).sort((a,b)=>(a.b.minX+a.b.maxX)-(b.b.minX+b.b.maxX)),first=order[0].b.minX,last=order.at(-1).b.maxX,widths=order.map(o=>o.b.maxX-o.b.minX),gap=(last-first-widths.reduce((a,b)=>a+b,0))/(boxes.length-1);if(gap<-.001)return null;const deltas=boxes.map(()=>[0,0]);let cursor=first;
+ for(const item of order){deltas[item.index][0]=cursor-item.b.minX;cursor+=widths[item.index]+gap;}
+ return deltas;
+}
+function equalizeSelectedLetterSpacing(){
+ const ids=[...selectedLetterGroups];if(ids.length<3){setStatus('Select at least three letters to equalize their edge-to-edge spacing.',true);return;}
+ const boxes=ids.map(letterBox),deltas=equalSpacingDeltas(boxes);if(!deltas){setStatus('The selected letters need at least three glyphs and enough total width to distribute non-overlapping equal gaps.',true);return;}
+ ids.forEach((id,i)=>{const o=letterOffsets.get(id)||{x:0,y:0};letterOffsets.set(id,{x:o.x+deltas[i][0],y:o.y});});
+ moveLetterMeshes();if(lineChannels){placeLineChannels();refreshLetterSelection(false);}scheduleRebuild();noteAction('Equalized the edge-to-edge spacing across '+ids.length+' selected letters.');
+}
+function alignSelectedLetters(mode){
+ const ids=[...selectedLetterGroups];if(!ids.length){setStatus('Click a letter in the preview to select it before aligning.',true);return;}
+ if(mode==='slope45'&&ids.length<2){setStatus('Select two or more letters (Shift-click) to line them up on a 45° slope.',true);return;}
+ const others=[...getLetterGroups().keys()].filter(id=>!selectedLetterGroups.has(id)).map(letterBox),boxes=ids.map(letterBox),deltas=alignDeltas(mode,boxes,unionBox(others.length?others:boxes));
+ if(deltas.every(d=>Math.abs(d[0])<.001&&Math.abs(d[1])<.001)){setStatus('Selection is already aligned.');return;}
+ ids.forEach((id,i)=>{const o=letterOffsets.get(id)||{x:0,y:0};letterOffsets.set(id,{x:o.x+deltas[i][0],y:o.y+deltas[i][1]});});
+ moveLetterMeshes();if(lineChannels){placeLineChannels();refreshLetterSelection(false);}scheduleRebuild();noteAction('Aligned '+ids.length+' letter(s): '+(mode==='slope45'?'45° incline':mode)+'.');
+}
+function planePointFromPointer(event,z=0){const r=renderer.domElement.getBoundingClientRect(),mouse=new THREE.Vector2((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);const p=new THREE.Vector3();return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),-z),p)?p:null;}
+function letterAtHit(hit){
+ // A hit on a joined channel belongs to the member letter whose centerline is closest to the hit point.
+ const u=hit.object.userData;if(u.groupId!==undefined)return String(u.groupId);if(!u.memberIds||!lineChannels)return null;let best=null,bestD=Infinity;
+ for(const id of u.memberIds){const o=letterOffsets.get(id)||{x:0,y:0};for(const p of lineChannels.groups.get(id)?.paths||[])for(let i=0;i<p.points.length-(p.closed?0:1);i++){const a=p.points[i],b=p.points[(i+1)%p.points.length],ax=a.x+o.x,ay=a.y+o.y,dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((hit.point.x-ax)*dx+(hit.point.y-ay)*dy)/l2)):0,d=Math.hypot(hit.point.x-ax-t*dx,hit.point.y-ay-t*dy);if(d<bestD){bestD=d;best=id;}}}
+ return best;
+}
+function moveLetterMeshes(){for(const m of modelRoot.children){if(m.userData.groupId===undefined)continue;const o=letterOffsets.get(String(m.userData.groupId))||{x:0,y:0};m.position.set(o.x,o.y,0);}}
+function beginLetterPointer(event){
+ if(event.button!==0||!modelRoot.children.length)return;
+ const rect=renderer.domElement.getBoundingClientRect(),mouse=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);
+ // Eyelets are mounted on the rear. Intercept their ring meshes before the wire tools or letter mover.
+ if($('mountStyle').value==='eyelets'&&camera.position.z<wireBackZ-.5){
+  const mounts=modelRoot.children.filter(o=>o.isMesh&&o.userData.eyeletId),hit=ray.intersectObjects(mounts,false)[0];
+  if(hit){
+   event.preventDefault();event.stopImmediatePropagation();const id=hit.object.userData.eyeletId;
+   if(event.shiftKey||event.ctrlKey||event.metaKey){if(selectedMountIds.has(id))selectedMountIds.delete(id);else selectedMountIds.add(id);refreshMountSelection();eyeletDragEnd=performance.now();return;}
+   if(!selectedMountIds.has(id)){selectedMountIds.clear();selectedMountIds.add(id);}refreshMountSelection();
+   const z=wireBackZ-1.3,startPoint=planePointFromPointer(event,z);if(!startPoint)return;
+   const positions=new Map();for(const p of eyeletPointsForBoundsRaw(backplaneBounds))if(selectedMountIds.has(p.id))positions.set(p.id,{x:p.x,y:p.y});
+   eyeletMessage='';eyeletDragState={pointerId:event.pointerId,ids:[...positions.keys()],positions,z,startPoint,moved:false,edgeWasVisible:edgeRoot.visible,startClientX:event.clientX,startClientY:event.clientY};controls.enabled=false;edgeRoot.visible=false;
+   try{renderer.domElement.setPointerCapture(event.pointerId);}catch{}return;
+  }
+ }
+ if(wireMode)return;
+ let id=null,z=0;for(const h of ray.intersectObjects(modelRoot.children,false)){id=letterAtHit(h);if(id){z=h.point.z;break;}}
+ const additive=event.shiftKey||event.ctrlKey||event.metaKey;
+ if(!id){letterDragState={pointerId:event.pointerId,empty:true,additive,startClientX:event.clientX,startClientY:event.clientY};return;}
+ event.preventDefault();event.stopImmediatePropagation();
+ if(additive){if(selectedLetterGroups.has(id))selectedLetterGroups.delete(id);else selectedLetterGroups.add(id);}else if(!selectedLetterGroups.has(id)){selectedLetterGroups.clear();selectedLetterGroups.add(id);}
+ refreshLetterSelection();if(!selectedLetterGroups.has(id))return;
+ const startPoint=planePointFromPointer(event,z);if(!startPoint)return;const offsets=new Map();for(const gid of selectedLetterGroups){const o=letterOffsets.get(gid)||{x:0,y:0};offsets.set(gid,{x:o.x,y:o.y});}
+ letterDragState={pointerId:event.pointerId,startPoint,z,offsets,moved:false,startClientX:event.clientX,startClientY:event.clientY};controls.enabled=false;try{renderer.domElement.setPointerCapture(event.pointerId);}catch{}
+}
+function moveLetterPointer(event){
+ const eyelet=eyeletDragState;if(eyelet&&event.pointerId===eyelet.pointerId){
+  if(!eyelet.moved&&Math.hypot(event.clientX-eyelet.startClientX,event.clientY-eyelet.startClientY)<3)return;
+  const point=planePointFromPointer(event,eyelet.z);if(!point)return;const dx=point.x-eyelet.startPoint.x,dy=point.y-eyelet.startPoint.y,ignored=new Set(eyelet.ids),next=[];
+  for(const id of eyelet.ids){const old=eyelet.positions.get(id),candidate={id,x:old.x+dx,y:old.y+dy};if(!mountPointFits(candidate.x,candidate.y,ignored)){eyeletMessage='Mounting points must remain on the solid backplane with at least 10 mm of material beyond each hole.';updateEyeletWarning();return;}next.push(candidate);}
+  for(let i=0;i<next.length;i++)for(let j=i+1;j<next.length;j++)if(Math.hypot(next[i].x-next[j].x,next[i].y-next[j].y)<7.5){eyeletMessage='Selected mounting holes cannot overlap.';updateEyeletWarning();return;}
+  eyelet.moved=true;eyeletMessage='';for(const p of next){const loc=eyeletLocations.find(q=>q.id===p.id);loc.u=(p.x-backplaneBounds.minX)/backplaneBounds.width;loc.v=(p.y-backplaneBounds.minY)/backplaneBounds.height;const mesh=modelRoot.children.find(o=>o.userData.eyeletId===p.id);if(mesh)mesh.position.set(p.x,p.y,0);}updateEyeletWarning();return;
+ }
+ const st=letterDragState;if(!st||st.empty||event.pointerId!==st.pointerId)return;if(!st.moved&&Math.hypot(event.clientX-st.startClientX,event.clientY-st.startClientY)<3)return;
+ const point=planePointFromPointer(event,st.z);if(!point)return;if(!st.moved){st.moved=true;edgeRoot.visible=false;}
+ const dx=point.x-st.startPoint.x,dy=point.y-st.startPoint.y;for(const [id,o] of st.offsets)letterOffsets.set(id,{x:o.x+dx,y:o.y+dy});moveLetterMeshes();
+ if(lineChannels&&performance.now()-channelTick>100){channelTick=performance.now();placeLineChannels();refreshLetterSelection(false);}
+}
+function endLetterPointer(event){
+ const eyelet=eyeletDragState;if(eyelet&&event.pointerId===eyelet.pointerId){eyeletDragState=null;eyeletDragEnd=performance.now();controls.enabled=!wireMode;edgeRoot.visible=eyelet.edgeWasVisible;try{if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);}catch{}if(eyelet.moved){eyeletMessage='';scheduleRebuild();noteAction('Mounting point(s) moved; through-holes were rebuilt at the new positions.');}else updateEyeletWarning();return;}
+ const st=letterDragState;if(!st||event.pointerId!==st.pointerId)return;letterDragState=null;controls.enabled=!wireMode;try{if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);}catch{}
+ if(st.empty){if(!st.additive&&selectedLetterGroups.size&&Math.hypot(event.clientX-st.startClientX,event.clientY-st.startClientY)<3){selectedLetterGroups.clear();refreshLetterSelection();}return;}
+ edgeRoot.visible=true;if(st.moved){letterDragEnd=performance.now();if(lineChannels){placeLineChannels();refreshLetterSelection(false);}scheduleRebuild();noteAction('Letter moved. Touching channels are joined and the backplane has been refitted.');}
+}
+function handleKey(event){
+ if(/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName||''))return;
+ if(wireMode){if(event.key==='Enter'&&wireMode==='route'){event.preventDefault();finishWireRoute();}else if(event.key==='Escape'){event.preventDefault();if(wireMode==='route'&&wireDraft.length){wireDraft=[];refreshWireOverlay();refreshWireUI();}else exitWireMode();}return;}
+ const step=event.shiftKey?10:1,d={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,step],ArrowDown:[0,-step]}[event.key];if(!d||!selectedLetterGroups.size)return;event.preventDefault();
+ for(const id of selectedLetterGroups){const o=letterOffsets.get(id)||{x:0,y:0};letterOffsets.set(id,{x:o.x+d[0],y:o.y+d[1]});}moveLetterMeshes();if(lineChannels){placeLineChannels();refreshLetterSelection(false);}scheduleRebuild(400);
+}
+function selectedWallHit(e){const r=renderer.domElement.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(m,camera);const hits=ray.intersectObjects(modelRoot.children,false);if(!hits.length)return;const o=hits[0].object,id=o.userData.wallIndex??o.userData.helperId;if(id===undefined)return;selectedHelper=id;$('helperBar').hidden=false;$('helperLabel').textContent='Wall '+(id+1)+' selected';const h=modelRoot.children.find(m=>m.userData.kind==='helper'&&m.userData.helperId===id);$('toggleHelper').textContent=h?.visible===false?'Restore helper':'Remove helper';}
+function toggleHelper(){if(selectedHelper===null)return;const h=modelRoot.children.find(m=>m.userData.kind==='helper'&&m.userData.helperId===selectedHelper);if(!h){setStatus('This wall has no ledge helper. Select a channel-letter wall with the face-plate ledge enabled.',true);return;}h.visible=!h.visible;helperVisibility.set(selectedHelper,h.visible);$('toggleHelper').textContent=h.visible?'Remove helper':'Restore helper';rebuildEdges();}
+function exportSTL(){if(manufacturingErrors.length){setStatus('STL export is blocked. Correct the design errors shown above first.',true);return;}if(!modelRoot.children.length){setStatus('Build or upload artwork first.',true);return;}try{const exportRoot=new THREE.Group();for(const m of modelRoot.children)if(m.visible)exportRoot.add(m.clone());exportRoot.updateMatrixWorld(true);const blob=stlExporter.parse(exportRoot,{binary:true});downloadBlob(new Blob([blob],{type:'model/stl'}),'LEDSign-print-ready.stl');setStatus('STL exported. Check bed fit, shell unions and mounting details in your slicer.');}catch(e){setStatus('STL export failed: '+e.message,true);}}
+function exportGLB(){if(!modelRoot.children.length){setStatus('Build or upload artwork first.',true);return;}try{const exportRoot=new THREE.Group();exportRoot.add(modelRoot.clone(true));if(guardRoot?.children.length)exportRoot.add(guardRoot.clone(true));exportRoot.updateMatrixWorld(true);gltfExporter.parse(exportRoot,result=>{downloadBlob(new Blob([result],{type:'model/gltf-binary'}),'LEDSign-preview.glb');setStatus('GLB preview exported'+(guardRoot?.children.length?' with installed channel guards.':'.'));},err=>setStatus('GLB export failed: '+err.message,true),{binary:true,onlyVisible:true});}catch(e){setStatus('GLB export failed: '+e.message,true);}}
+function exportChannelGuardsSTL(){if(manufacturingErrors.length){setStatus('Channel-guard STL export is blocked. Correct the design errors shown above first.',true);return;}if(!guardRoot?.children.length){setStatus('Enable printable channel guards and finish a rear wire route first.',true);return;}try{const blob=stlExporter.parse(guardRoot,{binary:true});downloadBlob(new Blob([blob],{type:'model/stl'}),'LEDSign-channel-guards.stl');setStatus('Channel guards exported separately. Print these parts independently from the backplane.');}catch(e){setStatus('Channel guard STL export failed: '+e.message,true);}}
+function resetApp(){sourceData=null;sourceSvgText='';sourceLabel='';customBackplaneData=null;customBackplaneWorld=null;$('customBackplaneFile').value='';$('customBackplaneName').textContent='No custom backplane loaded';wireRoutes=[];wireDraft=[];wireHoles=[];wireHistory=[];wireMode='';eyeletLocations=null;eyeletDragState=null;eyeletDragEnd=0;eyeletMessage='';backplaneBounds=null;backplaneBoundary=[];backplaneTileRegions=[];backplaneHoleRegions=[];backplaneRegions=[];rearGhostPaths=[];disposeGroup(idPreviewRoot);disposeGroup(wireGhostRoot);disposeGroup(guardRoot);letterOffsets.clear();selectedLetterGroups.clear();letterDragState=null;restoreView();fitOnBuild=true;if(lineChannels)for(const g of lineChannels.groups.values())g.geometry.dispose();lineChannels=null;disposeGroup(wireRoot);refreshWireUI();if(controls)controls.enabled=true;fontBuffer=null;parsedFont=null;helperVisibility.clear();disposeGroup(modelRoot);disposeGroup(edgeRoot);disposeGroup(guideRoot);delete $('wallHeight').dataset.userValue;for(const [id,v]of Object.entries({artWidth:400,artHeight:200,wallHeight:18,wallThickness:2,floorThickness:2,ledgeDistance:3,ledgeWidth:3,ledgeHeight:2,supportAngle:45,diffuserThickness:2,ledWidth:9,ledPhysicalWidth:8,ledPhysicalHeight:16,ledClearance:.75,smoothness:6,backplaneMargin:18,backplaneThickness:3,tileWidth:250,tileHeight:250,joinDepth:7,joinWidth:24,wireRouteWidth:7,wireRouteDepth:2,bedWidth:256,bedHeight:256}))$(id).value=v;dimensionInputUnit='mm';document.querySelectorAll('[data-dimension-unit]').forEach(b=>b.classList.toggle('active',b.dataset.dimensionUnit==='mm'));for(const id of ['artWidth','artHeight']){$(id).step='1';$(id+'Unit').textContent='mm';}$('smoothValue').textContent='6';$('lineSpacing').value=1.4;$('lineSpacingValue').textContent='1.4×';$('wireHoleDiameter').value=4;$('traceTextCenterline').checked=true;setInputTab('svg');$('buildStyle').value='letters';$('ledProduct').value='neon8x16_12';$('closedBack').checked=true;$('ledgeEnabled').checked=true;$('backplaneEnabled').checked=true;$('backplaneStyle').value='rounded';$('joinStyle').value='dovetail';$('mountStyle').value='keyholes';$('eyeletHelp').hidden=true;$('eyeletWarning').hidden=true;$('generateWireGuards').checked=false;$('wireGuardReadout').hidden=true;$('downloadGuards').hidden=true;$('embossIds').checked=true;$('cornerMode').value='bevel';$('featureEdges').checked=true;$('metalColor').value='#8995a7';$('signText').value='LED SIGN';$('fontChoice').value='roboto';$('bedPreset').value='256,256';$('svgFile').value='';$('fontFile').value='';$('emptyState').hidden=false;$('helperBar').hidden=true;selectedMountIds.clear();sourceNotes=[];actionNote='';setBuildWarnings([]);setManufacturingErrors([]);updateMountSelectionUI();updateRequestedSize();$('modelName').textContent='Your channel will appear here';$('pathLength').textContent='—';$('artSize').textContent='—';$('partCount').textContent='—';$('diffuserFit').textContent='—';applyLedProfile();toggleFields();setStatus('Reset. Upload an SVG or switch to Text to start.');}
+function bindUI(){document.querySelectorAll('[data-input-tab]').forEach(b=>b.addEventListener('click',()=>setInputTab(b.dataset.inputTab)));$('customBackplaneFile').addEventListener('change',e=>parseCustomBackplaneFile(e.target.files?.[0]));$('clearCustomBackplane').addEventListener('click',()=>{customBackplaneData=null;customBackplaneWorld=null;$('customBackplaneFile').value='';$('customBackplaneName').textContent='No custom backplane loaded';if($('backplaneStyle').value==='custom')$('backplaneStyle').value='rounded';toggleFields();scheduleRebuild();});$('svgFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{await parseSvgText(await f.text(),f.name);}catch(err){setStatus('SVG load failed: '+err.message,true);}});$('dropZone').addEventListener('dragover',e=>{e.preventDefault();$('dropZone').classList.add('dragover');});$('dropZone').addEventListener('dragleave',()=>$('dropZone').classList.remove('dragover'));$('dropZone').addEventListener('drop',async e=>{e.preventDefault();$('dropZone').classList.remove('dragover');const f=e.dataTransfer.files?.[0];if(!f)return;if(!f.name.toLowerCase().endsWith('.svg')){setStatus('Drop an SVG file to begin.',true);return;}try{await parseSvgText(await f.text(),f.name);}catch(err){setStatus('SVG load failed: '+err.message,true);}});$('sampleSign').addEventListener('click',sample);$('canvasSample').addEventListener('click',sample);$('buildText').addEventListener('click',async()=>{try{await buildText();}catch(e){setStatus('Text-to-outline failed: '+e.message,true);}});$('fontFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;const prevBuffer=fontBuffer,prevParsed=parsedFont,prevChoice=$('fontChoice').value;try{fontBuffer=await f.arrayBuffer();parsedFont=null;$('fontChoice').value='custom';await buildText();}catch(err){fontBuffer=prevBuffer;parsedFont=prevParsed;$('fontChoice').value=prevChoice;setStatus('Font loading failed: '+err.message+' The previous design and font were kept.',true);}});$('fontChoice').addEventListener('change',()=>{parsedFont=null;if(activeInput==='text')buildText().catch(e=>setStatus(e.message,true));});$('backplaneEnabled').addEventListener('change',scheduleRebuild);$('ledProduct').addEventListener('change',()=>{applyLedProfile();scheduleRebuild();});$('alignCenter').addEventListener('click',()=>alignSelectedLetters('center'));$('alignLeft').addEventListener('click',()=>alignSelectedLetters('left'));$('alignRight').addEventListener('click',()=>alignSelectedLetters('right'));$('alignTop').addEventListener('click',()=>alignSelectedLetters('top'));$('alignBottom').addEventListener('click',()=>alignSelectedLetters('bottom'));$('alignMiddle').addEventListener('click',()=>alignSelectedLetters('middle'));$('alignSlope').addEventListener('click',()=>alignSelectedLetters('slope45'));$('equalizeSpacing').addEventListener('click',equalizeSelectedLetterSpacing);$('markWireRoute').addEventListener('click',()=>enterWireMode('route'));$('markWireHole').addEventListener('click',()=>enterWireMode('hole'));$('finishWireRoute').addEventListener('click',finishWireRoute);$('undoWire').addEventListener('click',undoWireEdit);$('clearWire').addEventListener('click',clearWireEdits);$('addMountPoint').addEventListener('click',addEyeletPoint);$('removeMountPoints').addEventListener('click',removeSelectedEyelets);for(const [id,mode] of [['mountAlignLeft','left'],['mountAlignCenterX','centerX'],['mountAlignRight','right'],['mountAlignTop','top'],['mountAlignCenterY','centerY'],['mountAlignBottom','bottom'],['mountDistributeX','distributeX'],['mountDistributeY','distributeY']])$(id).addEventListener('click',()=>alignSelectedEyelets(mode));const live=['buildStyle','wallHeight','wallThickness','closedBack','floorThickness','ledgeEnabled','ledgeDistance','ledgeWidth','ledgeHeight','supportAngle','diffuserThickness','ledWidth','ledPhysicalWidth','ledPhysicalHeight','ledClearance','cornerMode','smoothness','backplaneStyle','backplaneMargin','backplaneThickness','tileWidth','tileHeight','joinStyle','joinDepth','joinWidth','mountStyle','embossIds','wireRouteWidth','wireRouteDepth','generateWireGuards','bedWidth','bedHeight'];for(const id of live)$(id).addEventListener('input',()=>{if(id==='wallHeight')delete $('wallHeight').dataset.userValue;if(id==='smoothness')$('smoothValue').textContent=$('smoothness').value;if(['ledPhysicalWidth','ledClearance'].includes(id))updateLedChannelWidth();toggleFields();scheduleRebuild();});document.querySelectorAll('input[type=number]').forEach(el=>{if(['artWidth','artHeight','ledWidth'].includes(el.id))return;el.addEventListener('change',()=>{const lo=el.min===''?-Infinity:+el.min,hi=el.max===''?Infinity:+el.max,label=el.closest('.field')?.querySelector('label')?.childNodes[0]?.textContent?.trim()||el.id;let v=parseFloat(el.value),message='';if(!Number.isFinite(v)){el.value=el.defaultValue;message=label+' was empty; restored '+el.defaultValue+'.';}else if(v<lo||v>hi){const c=Math.min(hi,Math.max(lo,v));el.value=c;message=label+' must be between '+lo+' and '+hi+'; using '+c+'.';}else return;noteAction(message);el.dispatchEvent(new Event('input',{bubbles:true}));});});
+$('artWidth').addEventListener('input',rescaleSourceToTarget);$('artHeight').addEventListener('input',rescaleSourceToTarget);document.querySelectorAll('[data-dimension-unit]').forEach(button=>button.addEventListener('click',()=>setDimensionUnit(button.dataset.dimensionUnit)));let spacingTimer=null;$('lineSpacing').addEventListener('input',()=>{$('lineSpacingValue').textContent=Number($('lineSpacing').value).toFixed(1)+'×';clearTimeout(spacingTimer);spacingTimer=setTimeout(()=>{if(activeInput==='text')buildText().catch(error=>setStatus('Text layout failed: '+error.message,true));},250);});$('buildStyle').addEventListener('change',()=>{toggleFields();scheduleRebuild();});$('bedPreset').addEventListener('change',()=>{if($('bedPreset').value!=='custom'){const p=$('bedPreset').value.split(',');$('bedWidth').value=p[0];$('bedHeight').value=p[1];scheduleRebuild();}});$('metalColor').addEventListener('input',()=>{const hex=new THREE.Color($('metalColor').value).getHex();modelRoot.traverse(o=>{if(o.isMesh&&o.userData.kind!=='backplane'&&o.userData.kind!=='mount'&&o.userData.kind!=='emboss'){o.userData.originalDisplayColor=hex;o.material.color.setHex(hex);}});refreshLetterSelection(false);});$('featureEdges').addEventListener('change',rebuildEdges);$('toggleHelper').addEventListener('click',toggleHelper);$('downloadSTL').addEventListener('click',exportSTL);$('downloadGLB').addEventListener('click',exportGLB);$('downloadGuards').addEventListener('click',exportChannelGuardsSTL);$('reset').addEventListener('click',resetApp);$('frontView').addEventListener('click',()=>setCamera('front'));$('topView').addEventListener('click',()=>setCamera('top'));$('isoView').addEventListener('click',()=>setCamera('iso'));$('fitView').addEventListener('click',fitCamera);renderer.domElement.addEventListener('pointerdown',beginLetterPointer,true);renderer.domElement.addEventListener('pointermove',moveLetterPointer);renderer.domElement.addEventListener('pointerup',endLetterPointer,true);renderer.domElement.addEventListener('pointercancel',endLetterPointer,true);renderer.domElement.addEventListener('pointermove',updateWirePreview);renderer.domElement.addEventListener('dblclick',e=>{if(wireMode==='route'){e.preventDefault();finishWireRoute();}});window.addEventListener('keydown',handleKey);renderer.domElement.addEventListener('click',e=>{if(performance.now()-eyeletDragEnd<350||handleWireCanvasClick(e)||performance.now()-letterDragEnd<300)return;selectedWallHit(e);});}
+initViewer();bindUI();applyLedProfile();toggleFields();updateWireGuardUI();
