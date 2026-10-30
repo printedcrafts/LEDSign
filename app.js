@@ -386,7 +386,7 @@ function beginLetterPointer(event){
   const mounts=modelRoot.children.filter(o=>o.isMesh&&o.userData.eyeletIndex!==undefined),hit=ray.intersectObjects(mounts,false)[0];
   if(hit){
    event.preventDefault();event.stopImmediatePropagation();const index=hit.object.userData.eyeletIndex,z=wireBackZ-1.3,startPoint=planePointFromPointer(event,z);if(!startPoint)return;
-   eyeletMessage='';eyeletDragState={pointerId:event.pointerId,index,z,startPoint,moved:false,startClientX:event.clientX,startClientY:event.clientY};controls.enabled=false;edgeRoot.visible=false;
+   eyeletMessage='';eyeletDragState={pointerId:event.pointerId,index,z,startPoint,moved:false,edgeWasVisible:edgeRoot.visible,startClientX:event.clientX,startClientY:event.clientY};controls.enabled=false;edgeRoot.visible=false;
    try{renderer.domElement.setPointerCapture(event.pointerId);}catch{}return;
   }
  }
@@ -408,7 +408,7 @@ function moveLetterPointer(event){
  if(lineChannels&&performance.now()-channelTick>100){channelTick=performance.now();placeLineChannels();refreshLetterSelection(false);}
 }
 function endLetterPointer(event){
- const eyelet=eyeletDragState;if(eyelet&&event.pointerId===eyelet.pointerId){eyeletDragState=null;controls.enabled=!wireMode;edgeRoot.visible=true;try{if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);}catch{}if(eyelet.moved){eyeletMessage='';scheduleRebuild();setStatus('Eyelet '+(eyelet.index+1)+' moved. The through-hole is being rebuilt at its new position.');}else updateEyeletWarning();return;}
+ const eyelet=eyeletDragState;if(eyelet&&event.pointerId===eyelet.pointerId){eyeletDragState=null;controls.enabled=!wireMode;edgeRoot.visible=eyelet.edgeWasVisible;try{if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);}catch{}if(eyelet.moved){eyeletMessage='';scheduleRebuild();setStatus('Eyelet '+(eyelet.index+1)+' moved. The through-hole is being rebuilt at its new position.');}else updateEyeletWarning();return;}
  const st=letterDragState;if(!st||event.pointerId!==st.pointerId)return;letterDragState=null;controls.enabled=!wireMode;try{if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);}catch{}
  if(st.empty){if(!st.additive&&selectedLetterGroups.size&&Math.hypot(event.clientX-st.startClientX,event.clientY-st.startClientY)<3){selectedLetterGroups.clear();refreshLetterSelection();}return;}
  edgeRoot.visible=true;if(st.moved){letterDragEnd=performance.now();if(lineChannels){placeLineChannels();refreshLetterSelection(false);}scheduleRebuild();setStatus('Letter moved. Touching channels join live; the backplane refits when the rebuild finishes.');}

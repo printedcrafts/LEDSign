@@ -25,5 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate application JavaScript syntax
+        run: node --check app.js
       - name: Validate panel and connector geometry
         run: node tests/geometry-smoke.mjs
