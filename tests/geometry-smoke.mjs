@@ -205,4 +205,17 @@ assert.ok(app.includes('function removeSelectedEyelets'),'mounting points must b
 assert.ok(app.includes('function alignSelectedEyelets'),'mounting points need selection-based alignment');
 assert.ok(app.includes('at least 10 mm of material beyond each hole'),'mount points must maintain a 10 mm material edge clearance');
 assert.ok(app.includes('function centerArtworkOnBackplane'),'explicit artwork centering controls must exist');
-console.log('LEDSign geometry smoke tests passed:',tested,'panel, silhouette, connector and adjacent-tile seam cases.');
+const regions=new Function(extract('function pointInPolygon2D(','function updateMountSelectionUI(')+'return {regionContainsPoint,regionBoundaryDistance};')();
+const customRegion=[{outer:[[0,0],[100,0],[100,100],[0,100]],holes:[[[40,40],[60,40],[60,60],[40,60]]]}];
+assert.equal(regions.regionContainsPoint(customRegion,10,10),true,'points inside custom solid should be accepted');
+assert.equal(regions.regionContainsPoint(customRegion,50,50),false,'points inside an SVG cutout must be rejected');
+assert.equal(regions.regionBoundaryDistance(customRegion,50,30),10,'hole edge distance must contribute to clearance validation');
+const profileCustom=new Function('edgePoints',extract('function profileCustomTileContour(','function clipCustomBackplaneTile(')+'return profileCustomTileContour;')(edgePoints);
+for(const joint of ['dovetail','puzzle','none']){
+ const lp=profileCustom([[0,0],[200,0],[200,150],[0,150]],0,0,200,150,0,0,2,1,joint,7,24);
+ const rp=profileCustom([[200,0],[400,0],[400,150],[200,150]],200,0,200,150,1,0,2,1,joint,7,24).map(p=>[p[0]+200,p[1]]);
+ const seam=(poly)=>poly.filter(p=>p[1]>10&&p[1]<140&&p[0]>=192&&p[0]<=208);
+ assert.ok(samePointMultiset(seam(lp),seam(rp)),joint+' custom SVG tile seams must mate');
+}
+assert.ok(app.includes('The Boolean cut failed; reposition the hole'),'failed pass-through Boolean cuts must show a red correction marker');
+console.log('LEDSign geometry smoke tests passed:',tested,'panel, silhouette, connector and custom-region seam cases.');

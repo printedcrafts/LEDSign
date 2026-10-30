@@ -51,3 +51,15 @@ Selected compatible features from the alternate single-file implementation were 
 - A millimetre/inch entry-unit switch for target width and height. Switching units converts entered values to preserve physical size, final sizes continue to show both units, and changing the target box re-normalizes the source geometry and scales existing manual letter offsets.
 
 The alternate implementation's Three.js TubeGeometry outline tracing and separate glow tube were not carried over because they do not create the project's required open LED-sized printable channel cross-sections and would regress the existing centerline/CSG architecture.
+
+## Mounting points, holes and validation
+
+The eyelet editor supports adding/removing mounting points, multi-selecting them in the rear view, dragging a selected group, and aligning or distributing only the selected points. The 6.4 mm mounting opening must retain at least 10 mm of solid backplane material beyond its edge. Invalid drag positions are rejected without changing the model.
+
+Pass-through holes are validated against the solid backplane, text / LED channel clearance, rear wiring channels and other mounting or pass-through holes. Invalid holes stay visible in red and are not subtracted from the solid. Manufacturing-critical issues are listed in the validation panel and disable STL exports; the last valid 3D preview stays on screen while the design is corrected.
+
+## Custom SVG backplanes and text layout
+
+Choose **Custom SVG outline** in the backplane style selector and upload a separate SVG. Use filled, closed shapes; compound paths can include internal subpaths that become through-cutouts. The outline is fitted around the current artwork, but the artwork itself is not automatically moved. A custom shape can be tiled using the existing tile sizes and joint profiles.
+
+Text can be centered on the backplane horizontally, vertically or both using the explicit centering controls. Equalize spacing acts on three or more selected letters, makes edge-to-edge gaps equal and preserves the first and last selected letters. These actions are user-invoked; manual letter placement otherwise remains in place.

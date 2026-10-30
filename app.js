@@ -466,7 +466,13 @@ async function addBackplane(b,paths,reach=0){
   const idCuts=$('embossIds').checked?idEngravingCuts(tile,thick):[],eyeletCuts=eyelets.filter(h=>!directEyeletIds.has(h.id)&&h.x+3.2>=x0-.02&&h.x-3.2<=x0+tw+.02&&h.y+3.2>=y0-.02&&h.y-3.2<=y0+th+.02).map(h=>eyeletHoleCutter(h,thick)),wireCuts=wireHoles.filter(h=>!h.validationError&&h.x>=x0-.02&&h.x<=x0+tw+.02&&h.y>=y0-.02&&h.y<=y0+th+.02).map(h=>holeCutter(h,thick)),routeCuts=wireRoutes.filter(route=>{const xs=route.points.map(p=>p.x),ys=route.points.map(p=>p.y),pad=wireChannelDimensions(thick).cavityWidth/2+1;return Math.max(...xs)>=x0-pad&&Math.min(...xs)<=x0+tw+pad&&Math.max(...ys)>=y0-pad&&Math.min(...ys)<=y0+th+pad;}).map(route=>wireChannelCutter(route,thick)).filter(Boolean),cuts=[...idCuts,...eyeletCuts,...wireCuts,...routeCuts];
   if(cuts.length){
    try{finalGeo=await subtractSolids(baseGeo,cuts);idSuccess=true;}
-   catch(error){cuts.forEach(g=>g.dispose());if(wireCuts.length||eyeletCuts.length)throw new Error('Could not cut a valid mounting or pass-through hole through the backplane: '+error.message);if(routeCuts.length)buildValidationErrors.push('Could not carve a rear wiring channel into tile '+tile.id+': '+error.message+' The current preview keeps the solid tile; fix the geometry issue before exporting.');else if(idCuts.length)setStatus('Could not countersink tile IDs: '+error.message+'. The plate remains visible without those decorative IDs.',true);}
+   catch(error){
+    cuts.forEach(g=>g.dispose());
+    if(wireCuts.length){for(const h of wireHoles.filter(h=>!h.validationError&&h.x>=x0-.02&&h.x<=x0+tw+.02&&h.y>=y0-.02&&h.y<=y0+th+.02))h.validationError='The Boolean cut failed; reposition the hole or try rebuilding the backplane.';}
+    if(wireCuts.length||eyeletCuts.length)throw new Error('Could not cut a valid mounting or pass-through hole through the backplane: '+error.message);
+    if(routeCuts.length)buildValidationErrors.push('Could not carve a rear wiring channel into tile '+tile.id+': '+error.message+' The current preview keeps the solid tile; fix the geometry issue before exporting.');
+    else if(idCuts.length)setStatus('Could not countersink tile IDs: '+error.message+'. The plate remains visible without those decorative IDs.',true);
+   }
   }
   if($('embossIds').checked&&idSuccess)addTileIdPreview(tile,thick);
   addMesh(finalGeo,{name:'Backplane '+tile.id,color:'#687487',userData:{kind:'backplane',tileId:tile.id,tileX:col+1,tileY:row+1}});tiles.push(tile);
