@@ -198,6 +198,7 @@ assert.ok(app.includes('eyeletHoleCutter(h,thick)'),'eyelet holes crossing a til
 assert.ok(app.includes('tile.regions||[{outer:tile.outline'),'rear channel guards must respect disconnected tile regions and internal holes');
 assert.ok(app.includes('function regionContainsPoint'),'custom cutouts must be excluded from valid plate points');
 assert.ok(app.includes('wireHoles.filter(h=>!h.validationError'),'invalid holes must never be included in the CSG cuts');
+assert.ok(app.includes('h.x+Math.max(1,(+h.diameter||4)/2)>=x0-.02'),'pass-through holes crossing tile seams must be cut in every intersected tile');
 assert.ok(app.includes('function equalSpacingDeltas'),'equal letter spacing should be a reusable geometry calculation');
 assert.ok(app.includes('!h.validationError&&h.x>=x0-.02'),'invalid pass-through holes must not enter the backplane CSG cut');
 assert.ok(app.includes('function addEyeletPoint'),'mounting points must be addable');
