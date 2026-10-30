@@ -405,7 +405,7 @@ function validateWireHole(h,paths,thickness){
  return '';
 }
 function equalizeHoleValidation(paths,thickness){
- for(const h of wireHoles){h.validationError=validateWireHole(h,paths,thickness);if(h.validationError)buildValidationErrors.push('Pass-through hole: '+h.validationError);}
+ for(let i=0;i<wireHoles.length;i++){const h=wireHoles[i];h.id=h.id||('H'+(i+1));h.validationError=validateWireHole(h,paths,thickness);if(h.validationError)buildValidationErrors.push('Pass-through hole '+h.id+': '+h.validationError);}
 }
 function refreshRearGhost(){
  if(!wireGhostRoot)return;disposeGroup(wireGhostRoot);wireGhostRoot.visible=!!wireMode&&!!backplaneBounds;
@@ -431,9 +431,12 @@ async function addBackplane(b,paths,reach=0){
  }else{
   const clearance=()=>roundOffsetConvex(hull(paths.flatMap(p=>p.points)),margin+pad);
   if(style==='contour')H=clearance();else if(['ellipse','shield','hexagon'].includes(style))H=fitSilhouette(backplaneSilhouette(style,artCenterX,artCenterY,baseW,baseH),[artCenterX,artCenterY],clearance());
-  if(H.length>=3){const hx=H.map(p=>p[0]),hy=H.map(p=>p[1]),dx=artCenterX-(Math.min(...hx)+Math.max(...hx))/2,dy=artCenterY-(Math.min(...hy)+Math.max(...hy))/2;H=H.map(p=>[p[0]+dx,p[1]+dy]);minX=Math.min(...H.map(p=>p[0]));maxX=Math.max(...H.map(p=>p[0]));minY=Math.min(...H.map(p=>p[1]));maxY=Math.max(...H.map(p=>p[1]));currentBounds.hull=H;}
-  const totalW=Math.max(100,maxX-minX),totalH=Math.max(100,maxY-minY);minX=artCenterX-totalW/2;maxX=artCenterX+totalW/2;minY=artCenterY-totalH/2;maxY=artCenterY+totalH/2;
-  backplaneBoundary=H.length>=3?H.map(p=>[p[0],p[1]]):panelOutline(0,0,1,1,totalW,totalH,style,'none',0,0,9).map(p=>[p[0]+minX,p[1]+minY]);
+  if(H.length>=3){
+   const hx=H.map(p=>p[0]),hy=H.map(p=>p[1]),dx=artCenterX-(Math.min(...hx)+Math.max(...hx))/2,dy=artCenterY-(Math.min(...hy)+Math.max(...hy))/2;
+   H=H.map(p=>[p[0]+dx,p[1]+dy]);const hMinX=Math.min(...H.map(p=>p[0])),hMaxX=Math.max(...H.map(p=>p[0])),hMinY=Math.min(...H.map(p=>p[1])),hMaxY=Math.max(...H.map(p=>p[1]));
+   const totalW=Math.max(100,hMaxX-hMinX),totalH=Math.max(100,hMaxY-hMinY);minX=artCenterX-totalW/2;maxX=artCenterX+totalW/2;minY=artCenterY-totalH/2;maxY=artCenterY+totalH/2;currentBounds.hull=H;
+  }else{minX=artCenterX-baseW/2;maxX=artCenterX+baseW/2;minY=artCenterY-baseH/2;maxY=artCenterY+baseH/2;}
+  backplaneBoundary=H.length>=3?H.map(p=>[p[0],p[1]]):panelOutline(0,0,1,1,maxX-minX,maxY-minY,style,'none',0,0,9).map(p=>[p[0]+minX,p[1]+minY]);
   regions=[{outer:backplaneBoundary,holes:[]}];
  }
  const totalW=maxX-minX,totalH=maxY-minY;backplaneBounds={minX,minY,maxX,maxY,width:totalW,height:totalH};
@@ -537,7 +540,7 @@ function exitWireMode(){wireMode='';wireDraft=[];restoreView();refreshWireOverla
 function finishWireRoute(){if(wireDraft.length<2){setStatus('A wire route needs at least two points.',true);return;}wireRoutes.push({points:wireDraft.map(p=>({x:p.x,y:p.y}))});wireDraft=[];refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild();setStatus('Route saved. Click to start another, or press Esc to return to your view.');}
 function undoWireEdit(){if(wireMode==='route'&&wireDraft.length){wireDraft.pop();refreshWireOverlay();refreshWireUI();return;}if(wireHoles.length)wireHoles.pop();else if(wireRoutes.length)wireRoutes.pop();else return;refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild(400);}
 function clearWireEdits(){wireRoutes=[];wireDraft=[];wireHoles=[];refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild();}
-function handleWireCanvasClick(e){if(!wireMode)return false;if(e.detail>1)return true;let p=wirePointFromEvent(e);if(!p)return true;if(wireMode==='route'){if(e.shiftKey&&wireDraft.length)p=snapWirePoint(wireDraft.at(-1),p);wireDraft.push(p);refreshWireOverlay();refreshWireUI();}else{wireHoles.push({x:p.x,y:p.y,diameter:Math.max(2,+$('wireHoleDiameter').value||4),validationError:''});refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild(600);}return true;}
+function handleWireCanvasClick(e){if(!wireMode)return false;if(e.detail>1)return true;let p=wirePointFromEvent(e);if(!p)return true;if(wireMode==='route'){if(e.shiftKey&&wireDraft.length)p=snapWirePoint(wireDraft.at(-1),p);wireDraft.push(p);refreshWireOverlay();refreshWireUI();}else{wireHoles.push({id:'H'+(wireHoles.length+1),x:p.x,y:p.y,diameter:Math.max(2,+$('wireHoleDiameter').value||4),validationError:''});refreshWireOverlay();refreshWireUI();if(sourceData)scheduleRebuild(600);}return true;}
 function updateWirePreview(e){if(wireMode!=='route'||!wirePreview||!wireDraft.length)return;let p=wirePointFromEvent(e);if(!p)return;if(e.shiftKey)p=snapWirePoint(wireDraft.at(-1),p);const a=wirePreview.geometry.attributes.position;a.setXYZ(1,p.x,p.y,wireOverlayZ());a.needsUpdate=true;wirePreview.geometry.computeBoundingSphere();wirePreview.computeLineDistances();}
 function addMounts(b,back){
  const style=$('mountStyle').value;if(style==='none'||!back.thickness)return;const t=back.thickness,w=b.width;
@@ -668,13 +671,13 @@ function alignDeltas(mode,boxes,frame){
 }
 function equalSpacingDeltas(boxes){
  if(boxes.length<3)return null;
- const order=boxes.map((b,index)=>({b,index})).sort((a,b)=>(a.b.minX+a.b.maxX)-(b.b.minX+b.b.maxX)),first=order[0].b.minX,last=order.at(-1).b.maxX,widths=order.map(o=>o.b.maxX-o.b.minX),gap=(last-first-widths.reduce((a,b)=>a+b,0))/(boxes.length-1),deltas=boxes.map(()=>[0,0]);let cursor=first;
+ const order=boxes.map((b,index)=>({b,index})).sort((a,b)=>(a.b.minX+a.b.maxX)-(b.b.minX+b.b.maxX)),first=order[0].b.minX,last=order.at(-1).b.maxX,widths=order.map(o=>o.b.maxX-o.b.minX),gap=(last-first-widths.reduce((a,b)=>a+b,0))/(boxes.length-1);if(gap<-.001)return null;const deltas=boxes.map(()=>[0,0]);let cursor=first;
  for(const item of order){deltas[item.index][0]=cursor-item.b.minX;cursor+=widths[item.index]+gap;}
  return deltas;
 }
 function equalizeSelectedLetterSpacing(){
  const ids=[...selectedLetterGroups];if(ids.length<3){setStatus('Select at least three letters to equalize their edge-to-edge spacing.',true);return;}
- const boxes=ids.map(letterBox),deltas=equalSpacingDeltas(boxes);if(!deltas){setStatus('Select at least three letters.',true);return;}
+ const boxes=ids.map(letterBox),deltas=equalSpacingDeltas(boxes);if(!deltas){setStatus('The selected letters need at least three glyphs and enough total width to distribute non-overlapping equal gaps.',true);return;}
  ids.forEach((id,i)=>{const o=letterOffsets.get(id)||{x:0,y:0};letterOffsets.set(id,{x:o.x+deltas[i][0],y:o.y});});
  moveLetterMeshes();if(lineChannels){placeLineChannels();refreshLetterSelection(false);}scheduleRebuild();setStatus('Equalized the edge-to-edge spacing across '+ids.length+' selected letters.');
 }

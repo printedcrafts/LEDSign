@@ -64,7 +64,7 @@ assert.ok(app.includes("function eyeletHoleCutter"),"eyelet openings must be sub
 assert.ok(app.includes("performance.now()-eyeletDragEnd<350"),"moving eyelets must not create accidental rear-wire points");
 assert.ok(app.includes("function addTileIdPreview"),"recessed tile IDs must be visible on the rear preview");
 assert.ok(app.includes("function refreshRearGhost"),"rear wiring mode must show ghosted lettering and channels");
-assert.ok(app.includes("userData:{kind:'mount',mountType:'eyelet',eyeletIndex}"),"eyelets must retain independent identity for drag editing");
+assert.ok(app.includes("userData:{kind:'mount',mountType:'eyelet',eyeletIndex,eyeletId}"),"eyelets must retain independent identity for drag editing");
 assert.ok(app.includes("function dimensionMm"),"target width/height input-unit conversion must be available");
 assert.ok(app.includes("function rescaleSourceToTarget"),"changing overall size must rescale existing artwork paths");
 assert.ok(app.includes("lineSpacing"),"multiline typography must use line spacing");
@@ -193,6 +193,9 @@ assert.ok(app.includes('function clipCustomBackplaneTile'),'custom backplane geo
 assert.ok(app.includes('function customArtworkFits'),'custom backplane must validate artwork and channel clearance');
 assert.ok(app.includes('backplaneRegions.length?regionContainsPoint'),'backplane containment must account for custom cutouts');
 assert.ok(app.includes('function profileCustomTileContour'),'custom backplane seams must retain the selected tile-joint profile');
+assert.ok(app.includes('function regionContainsPoint'),'custom cutouts must be excluded from valid plate points');
+assert.ok(app.includes('wireHoles.filter(h=>!h.validationError'),'invalid holes must never be included in the CSG cuts');
+assert.ok(app.includes('function equalSpacingDeltas'),'equal letter spacing should be a reusable geometry calculation');
 assert.ok(app.includes('!h.validationError&&h.x>=x0-.02'),'invalid pass-through holes must not enter the backplane CSG cut');
 assert.ok(app.includes('function addEyeletPoint'),'mounting points must be addable');
 assert.ok(app.includes('function removeSelectedEyelets'),'mounting points must be removable');
