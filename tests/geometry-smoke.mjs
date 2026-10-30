@@ -59,6 +59,7 @@ assert.ok(app.includes("function alignSelectedLetters"));
 assert.ok(app.includes("g.translate(0,0,-thickness-.01)"));
 assert.ok(app.includes("function addRearWireRoutes"));
 assert.ok(app.includes("function eyeletHoleCutter"),"eyelet openings must be subtracted through the backplane");
+assert.ok(app.includes("performance.now()-eyeletDragEnd<350"),"moving eyelets must not create accidental rear-wire points");
 assert.ok(app.includes("function addTileIdPreview"),"recessed tile IDs must be visible on the rear preview");
 assert.ok(app.includes("function refreshRearGhost"),"rear wiring mode must show ghosted lettering and channels");
 assert.ok(app.includes("userData:{kind:'mount',mountType:'eyelet',eyeletIndex}"),"eyelets must retain independent identity for drag editing");
