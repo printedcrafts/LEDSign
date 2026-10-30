@@ -258,7 +258,7 @@ function addTileIdPreview(tile,thickness){
  const m=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:'#f5c58d',transparent:true,opacity:.98,depthTest:true,depthWrite:false}));
  m.renderOrder=4;idPreviewRoot.add(m);
 }
-function isBackplanePoint(x,y){return backplaneTileRegions.some(poly=>pointInPolygon2D(x,y,poly));}
+function isBackplanePoint(x,y){return backplaneTileRegions.length?backplaneTileRegions.some(poly=>pointInPolygon2D(x,y,poly)):backplaneBoundary.length>=3&&pointInPolygon2D(x,y,backplaneBoundary);}
 function updateMountSelectionUI(){
  const editor=$('eyeletEditor');if(!editor)return;
  const active=$('mountStyle').value==='eyelets';editor.hidden=!active;
