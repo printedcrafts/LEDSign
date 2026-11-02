@@ -22,3 +22,4 @@
 .piece-row:hover{border-color:#4b5a78}.piece-row.active{border-color:#2f6fe0;background:#14203a}
 .piece-row .pid{font-weight:600}.piece-row .ok{color:#7ddf9a}.piece-row .bad{color:#ff8a8a}
 .piece-row button{padding:2px 10px;font-size:11px;min-height:0}
+.per-line-row{display:grid;grid-template-columns:1fr 96px;gap:8px;align-items:center;margin:4px 0}.per-line-row select{width:100%}
