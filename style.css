@@ -16,3 +16,9 @@
 
 .validation-summary{white-space:pre-line;color:#ffc0c8;border:1px solid #8e3546;background:#35151d;margin-top:10px}
 .warning-summary{white-space:pre-line;color:#ffe3a3;border:1px solid #8a6a1f;background:#2b2310;margin-top:10px}.selection-chips button.active{background:#e34234;border-color:#ff9d8f;color:#fff}
+.print-plan{white-space:pre-line}
+.piece-list{display:grid;gap:4px;max-height:230px;overflow:auto;margin:8px 0 12px}
+.piece-row{display:grid;grid-template-columns:64px 1fr auto auto;gap:8px;align-items:center;padding:4px 8px;border:1px solid #2a3140;border-radius:8px;cursor:pointer;font-size:12px}
+.piece-row:hover{border-color:#4b5a78}.piece-row.active{border-color:#2f6fe0;background:#14203a}
+.piece-row .pid{font-weight:600}.piece-row .ok{color:#7ddf9a}.piece-row .bad{color:#ff8a8a}
+.piece-row button{padding:2px 10px;font-size:11px;min-height:0}

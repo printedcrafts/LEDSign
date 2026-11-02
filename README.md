@@ -9,7 +9,7 @@ The interface uses a vermilion highlight (`#E34234`) on the dark control-panel a
 1. Choose SVG and drop/select a vector file, or switch to Text, type text, choose a font, and build its vector outlines.
 2. Choose Channel letters for filled artwork or LED channel along lines for vector strokes.
 3. Adjust artwork width, walls/floor, optional diffuser ledge, support angle, diffuser thickness and smoothness.
-4. Enable a rounded, square, or contour/outline backplane. Set tile max dimensions (minimum 100 mm), dovetail/puzzle/flat joins, and keyhole/eyelet/standoff mounting options.
+4. Enable a rounded, square, or contour/outline backplane. Choose your 3D printer bed (the sign is split into pieces that fit it automatically, or set a manual tile size), pick dovetail/puzzle/flat joins and the joint clearance, and choose keyhole/eyelet/standoff mounting options. Pieces are never smaller than 100 mm.
 5. Inspect the 3D model, adjust preview finish / feature edges, click a wall to remove or restore its ledge helper, then export STL or GLB.
 6. Check the result in a slicer before printing. The diffuser/acrylic face itself is not exported.
 
@@ -63,6 +63,21 @@ Pass-through holes are validated against the solid backplane, text / LED channel
 Choose **Custom SVG outline** in the backplane style selector and upload a separate SVG. Use filled, closed shapes; compound paths can include internal subpaths that become through-cutouts. The outline is fitted around the current artwork, but the artwork itself is not automatically moved. A custom shape can be tiled using the existing tile sizes and joint profiles.
 
 The backplane is always rebuilt around the outer edges of the artwork, so the artwork stays centered on it. A custom outline is enlarged (up to 3x) until the artwork and its clearance fit inside it. Equalize spacing acts on three or more selected letters, makes edge-to-edge gaps equal and preserves the first and last selected letters. These actions are user-invoked; manual letter placement otherwise remains in place.
+
+## Printing a large sign on a small printer
+
+The backplane is split into tiles that interlock, and the LED channel is cut at the same seams, so every piece is one backplane tile together with its own part of the channel, walls and ledge.
+
+- **Piece sizing.** Automatic mode (default) reads your printer bed (width, height, edge margin) and uses the fewest pieces that fit, counting the tabs that stick out of each tile. The *Piece size* slider trades piece count against piece size: right gives fewer, larger pieces (as big as the bed allows); left gives more, smaller pieces (down to 40% of the printable area, never below 100 mm). On a rectangular bed, pieces are turned 90° when that needs fewer pieces. Manual mode keeps the old *Tile max width/height* fields.
+- **Joint clearance.** The female pocket of every dovetail or puzzle joint is the male tab outline plus the joint clearance (default 0.20 mm) on the sides and bottom, so printed parts press together instead of fusing. The tab itself keeps its exact size. Set 0 for no gap.
+- **Seam placement.** By default the seams are placed between the letters ("Between the letters when possible"): for every possible seam position the app measures how much LED channel it would slice, then picks the positions that cut the least while keeping every piece within the bed limit (and at least 100 mm). Neighbouring letters whose channels touch leave no clean gap, so the plan reports how many millimetres of channel the seams still cut compared with an even grid. "Even grid" gives equal tiles. Both work in automatic and manual sizing, and the 0.20 mm clearance is the same on uneven tiles.
+- **Print plan and piece list.** Under the controls, the plan shows the piece grid, the largest piece, its height, and the seam summary, and warns when a piece is too big for the bed or too tall for the printer height (Z). Below it, every piece has a row with its size and a fits/too-big marker. Click a row to highlight that piece in the preview; the STL button on a row downloads just that piece (the same file as in the ZIP). *Show seam lines* draws orange lines where the sign and its channel are cut.
+- **Preview pieces apart.** The slider shows the real cut pieces (backplane tile, its channel and rear hardware) moved apart by 0 to 60 mm. It is view-only: letters cannot be picked while it is open, and any change to the design returns to the editable model.
+- **Download printable pieces (ZIP).** One STL per piece, already placed on the bed with the rear of the backplane down and the channel pointing up, named after the IDs engraved on the rear (for example `T01-02`). The ZIP also holds `print-plan.txt` (sizes, fit, where to glue rear hardware) and `assembly-map.svg`.
+- **Rear hardware** (keyhole tabs, eyelet rings, standoff posts) sits behind the plate and cannot print in place, so it is exported as separate parts in `*-rear-mounts.stl`; glue it at the positions in `print-plan.txt`. Wire channel guards are exported per piece as `*-wire-guards.stl`.
+- **Download assembled STL (preview only)** still writes the whole sign as one file at its assembled position. It is for viewing and checking, not for printing.
+
+Known limitation: with *Engrave tile IDs* on, the engraved text leaves tiny gaps in the mesh of each backplane tile (about 10 mm² per tile in tests). Slicers normally repair these on import. With *Engrave tile IDs* off, the tiles are fully watertight.
 
 ## Running and deploying
 
